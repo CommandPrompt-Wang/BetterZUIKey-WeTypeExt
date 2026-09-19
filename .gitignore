@@ -1,0 +1,36 @@
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.ap_
+*.dex
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 密钥（不入库）
+app-sign.keystore
+app-sign.keystore.b64
+keystore.properties
+
+# 编辑器
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# 调试残留
+*.log
+home.png
+lspd.db*
+chk.db*
+*.db-shm
+*.db-wal
+
+# 本地计划/笔记（不入库）
+# 注意：local 在 SamsungOEMExt 里是**符号链接**，git 把它当文件看，
+# 所以 `local/`（带斜杠，只匹配目录）不够，必须再写一条不带斜杠的。
+plan.md
+local/
+local
