@@ -77,6 +77,16 @@ public class MainActivity extends Activity {
                         + "判据是「末字符是 。/） 且它前面是数字」，一起上屏或分两次上屏都能命中。",
                 ExtConfig.KEY_SMART_NUMBER, cfg.smartNumber);
 
+        addSwitch(root, "使用英文标点",
+                "开：物理键盘打出的中文标点落成 ASCII（，→, 。→. ！→! ？→? ；→; ：→: （）→() 【】→[] “”→\"\" ‘'→''）。"
+                        + "关（默认）：中文标点保持全角。软键盘上点的 ，/。 不受影响。",
+                ExtConfig.KEY_EN_PUNCT, cfg.enPunct);
+
+        addSwitch(root, "全角模式",
+                "开：物理键盘打出的 ASCII 符号转全角（只动符号，不动字母数字，免得拼音被全角化）。"
+                        + "关（默认）：什么都不做 —— 微信自己的符号本来就是半角。",
+                ExtConfig.KEY_FULLWIDTH, cfg.fullWidth);
+
         addHint(root, "\n切换后立即生效，无需重启微信。\n"
                 + "日志标签：BZK-WeTypeExt");
 

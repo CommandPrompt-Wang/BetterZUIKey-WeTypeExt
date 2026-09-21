@@ -72,12 +72,12 @@ final class CommitHook {
                 try {
                     final String raw = a0.toString();
                     if ("commitText".equals(name)) {
-                        out = TextNorm.smartNumber(raw, chain.getThisObject(), sLastShown);
+                        out = TextNorm.normalizeCommit(raw, chain.getThisObject(), sLastShown);
                         if (out != null) {
                             final long now = System.currentTimeMillis();
                             if (now - sLastLog > 200) {
                                 sLastLog = now;
-                                Log.i(TAG, "smartNumber: \"" + raw + "\" -> \"" + out + "\"");
+                                Log.i(TAG, "norm: \"" + raw + "\" -> \"" + out + "\"");
                             }
                         }
                         remember(out != null ? out : raw);
