@@ -15,17 +15,35 @@ import io.github.libxposed.api.XposedModuleInterface;
  * <p>当前目标（仅此两项）：
  * <ol>
  *   <li>在 {@code :hld} / 输入法自身 uid 下暴露 zh-CN / en-US subtype（对齐搜狗 OEM Ext）；</li>
- *   <li>摸清并关闭「强制英文联想」的隐藏开关。</li>
+ *   <li>只在<b>英文键盘</b>关闭联想（中文键盘不动）。</li>
  * </ol>
  *
  * <p>LSPosed 作用域只需勾 {@code com.tencent.wetype}，不需要 system_server。
+ *
+ * <p>静态分析见 {@code local/static/}；本阶段是「第一轮探针」——注入 subtype + 只打日志的框架钩子。
  */
 public class BridgeHook extends XposedModule {
 
     static final String TAG = "BZK-WeTypeExt";
+
     private static final String SELF_PKG = "moe.lovefirefly.bzk.wetypeext";
+
     /** 微信输入法包名（APK badging / scope）。 */
     static final String WXKB_PKG = "com.tencent.wetype";
+
+    /** IME 本体所在进程。 */
+    private static final String IME_PROCESS_SUFFIX = ":hld";
+
+    /** 第一轮：只观察，不改行为。 */
+    static final boolean DEV_PROBE = true;
+
+    /**
+     * 是否解析微信内部类（{@code model.N} / {@code utils.j1}）来打内部状态。
+     *
+     * <p>留这个开关是因为踩过坑：内部类的静态初始化会拉起 MMKV，时机不对会把微信进程搞崩
+     * （见 {@link ServiceProbe} 类注释）。出事时把它关掉即可恢复，不必卸载模块。
+     */
+    static final boolean DEV_INTERNALS = true;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 
@@ -44,20 +62,33 @@ public class BridgeHook extends XposedModule {
         final String process = currentProcessName();
         Log.i(TAG, "package ready pkg=" + pkg + " process=" + process);
 
-        Thread t = new Thread(() -> {
+        final Thread t = new Thread(() -> {
             try {
                 final Context ctx = systemContext();
                 if (ctx == null) {
                     Log.w(TAG, "no system context");
                     return;
                 }
-                // Phase 0：只打点。Subtype 注入 / 英文联想探针按分析进度往这里挂。
-                Log.i(TAG, "probe stub online; subtype inject & en-suggest TBD");
+
+                // 1) 暴露 subtype：任何 WeType 进程都能过 uid 闸门（isSameApp 只看 appId），
+                //    重复调用是幂等的。
+                Log.i(TAG, "subtype inject: " + SubtypeInjector.apply(ctx, WXKB_PKG));
+
+                // 2) 框架钩子只需要装在 IME 进程；进程名认不出来时 fail-open，照样装。
+                final boolean isImeProcess = process == null
+                        || process.endsWith(IME_PROCESS_SUFFIX)
+                        || "?".equals(process);
+                if (DEV_PROBE && isImeProcess) {
+                    ServiceProbe.install(this, cl);
+                } else {
+                    Log.i(TAG, "skip service probe (process=" + process + ")");
+                }
+
                 Log.i(TAG, "betterzuikey installed=" + hasBetterZUIKey(ctx));
             } catch (Throwable tr) {
                 Log.w(TAG, "init failed: " + tr);
             }
-        }, "wxkb-bridge");
+        }, "wetype-bridge");
         t.setDaemon(true);
         t.start();
     }
@@ -90,4 +121,3 @@ public class BridgeHook extends XposedModule {
         return (Context) at.getClass().getMethod("getSystemContext").invoke(at);
     }
 }
-
