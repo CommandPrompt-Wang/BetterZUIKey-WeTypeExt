@@ -34,3 +34,6 @@ chk.db*
 plan.md
 local/
 local
+
+# 逆向取样：从设备抓下来的 MMKV 转储（含用户数据，只留本地）
+mmkv/

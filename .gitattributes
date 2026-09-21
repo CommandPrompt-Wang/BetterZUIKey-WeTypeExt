@@ -1,0 +1,7 @@
+# 全仓文本统一 LF。
+# gradlew 若被改成 CRLF，Termux 下会直接 `/bin/sh^M: bad interpreter`（本项目踩过）。
+* text=auto eol=lf
+
+# README.md 与 LSPosed 模块仓（BetterZUIKey-WeTypeExtModule）硬链接同一份文件，
+# 固定为 LF，避免 core.autocrlf 在检出时改写字节、把硬链接弄成两份不同内容。
+README.md text eol=lf
