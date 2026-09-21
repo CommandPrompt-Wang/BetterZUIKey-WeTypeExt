@@ -35,6 +35,7 @@ final class WeTypeInternals {
     static final int KB_ENGLISH_QWERTY = 100;
 
     private static volatile boolean sTried;
+    private static volatile Class<?> sNClass;
     private static volatile Object sN;
     private static volatile Object sJ1;
     private static volatile Method mN0;
@@ -44,6 +45,11 @@ final class WeTypeInternals {
     private static volatile Method mJ1K;
 
     private WeTypeInternals() {}
+
+    /** 已解析出的键盘控制器类（{@code model.N}）；null = 还没解析成功。 */
+    static Class<?> nClass() {
+        return sNClass;
+    }
 
     /**
      * Application 是否已经创建。微信在 {@code HldApplicationLike.onBaseContextAttached} 里
@@ -74,6 +80,7 @@ final class WeTypeInternals {
         sTried = true;
         try {
             final Class<?> n = Class.forName(CLS_N, false, cl);
+            sNClass = n;
             sN = findSingleton(n);
             mN0 = findMethod(n, "n0");
             mU0 = findMethod(n, "u0");

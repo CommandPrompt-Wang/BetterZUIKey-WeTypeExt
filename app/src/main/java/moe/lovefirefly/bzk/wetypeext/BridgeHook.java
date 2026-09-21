@@ -45,6 +45,21 @@ public class BridgeHook extends XposedModule {
      */
     static final boolean DEV_INTERNALS = true;
 
+    /**
+     * 是否启用目标 2 的行为：<b>英文键盘不放行联想候选</b>（中文键盘不动）。
+     *
+     * <p>放在这里当开关是为了 A/B：关掉即恢复微信原生行为，便于对比"是不是真的只砍了英文联想"。
+     */
+    static final boolean DEV_GATE_EN_ASSOC = true;
+
+    /**
+     * 每次改探针就 +1：日志里能看到它，用来判断"这个进程加载的是不是最新那份模块"。
+     *
+     * <p>踩过的坑：重装 APK 后如果目标进程没重启，LSPosed 仍用它启动时加载的旧代码
+     * （实测 :hld 一直跑着旧版，导致新加的闸门看起来"没生效"）。
+     */
+    static final int PROBE_BUILD = 2;
+
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 
     public BridgeHook() {
@@ -60,7 +75,8 @@ public class BridgeHook extends XposedModule {
         if (!sHandled.add(pkg)) return;
 
         final String process = currentProcessName();
-        Log.i(TAG, "package ready pkg=" + pkg + " process=" + process);
+        Log.i(TAG, "package ready pkg=" + pkg + " process=" + process
+                + " build=" + PROBE_BUILD);
 
         final Thread t = new Thread(() -> {
             try {

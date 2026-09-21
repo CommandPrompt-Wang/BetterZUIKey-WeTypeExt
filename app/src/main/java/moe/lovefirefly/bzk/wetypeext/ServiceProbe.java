@@ -43,6 +43,7 @@ final class ServiceProbe {
     private static volatile boolean sInstalled;
     private static volatile Object sService;
     private static volatile ClassLoader sCl;
+    private static volatile XposedModule sModule;
     private static volatile boolean sInternalsTried;
 
     private ServiceProbe() {}
@@ -51,6 +52,7 @@ final class ServiceProbe {
         if (sInstalled) return;
         sInstalled = true;
         sCl = cl;
+        sModule = module;
 
         // 注意：这里**不能**解析微信内部类，只能碰框架类。原因见类注释。
 
@@ -133,6 +135,8 @@ final class ServiceProbe {
         if (!WeTypeInternals.applicationReady()) return;
         sInternalsTried = true;
         WeTypeInternals.resolve(cl);
+        // 内部类拿到之后才装「英文键盘联想闸门」（它要 hook N.k2）
+        EnAssocGate.install(sModule, WeTypeInternals.nClass());
     }
 
     /** 一次性把「框架看到的 subtype」与「微信内部键盘状态」打在一行，方便对照。 */
