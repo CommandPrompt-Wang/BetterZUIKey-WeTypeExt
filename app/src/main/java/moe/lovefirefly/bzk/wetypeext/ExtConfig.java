@@ -31,6 +31,7 @@ final class ExtConfig {
     static final String KEY_SYNC_BACK = "syncBackToFramework";
     static final String KEY_STRICT = "strictFrameworkOnly";
     static final String KEY_SHIFT_PASSTHRU = "shiftPassThrough";
+    static final String KEY_SMART_NUMBER = "smartNumber";
 
     // 默认值（界面、发送方、模块侧三处必须一致，否则会出现"界面显示开、实际是关"）
     static final boolean DEF_EN_NO_SUGGEST = true;
@@ -41,6 +42,8 @@ final class ExtConfig {
     static final boolean DEF_STRICT = false;
     /** Shift 键放行（TASK 5）：见 {@link ShiftPassthrough}。默认开。 */
     static final boolean DEF_SHIFT_PASSTHRU = true;
+    /** TASK 2 智能编号：数字后的 。/） 用半角。默认开。 */
+    static final boolean DEF_SMART_NUMBER = true;
 
     /** 英文键盘不显示候选/联想（两种都去：打字过程中的补全 + 上屏后的下一个词）。 */
     final boolean enNoSuggest;
@@ -73,20 +76,24 @@ final class ExtConfig {
     /** Shift 键放行：微信不再独占 Shift，宿主恢复修饰键跟踪（原生 Shift+方向键扩选）。 */
     final boolean shiftPassThrough;
 
+    /** TASK 2 智能编号：{@code 1。}→{@code 1.}、{@code 1）}→{@code 1)}。 */
+    final boolean smartNumber;
+
     ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart,
             boolean syncBackToFramework, boolean strictFrameworkOnly,
-            boolean shiftPassThrough) {
+            boolean shiftPassThrough, boolean smartNumber) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
         this.syncBackToFramework = syncBackToFramework;
         this.strictFrameworkOnly = strictFrameworkOnly;
         this.shiftPassThrough = shiftPassThrough;
+        this.smartNumber = smartNumber;
     }
 
     static ExtConfig defaults() {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
-                DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU);
+                DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER);
     }
 
     static ExtConfig load(SharedPreferences sp) {
@@ -98,7 +105,8 @@ final class ExtConfig {
                     sp.getBoolean(KEY_TRANSLATE_ON_START, DEF_TRANSLATE_ON_START),
                     sp.getBoolean(KEY_SYNC_BACK, DEF_SYNC_BACK),
                     sp.getBoolean(KEY_STRICT, DEF_STRICT),
-                    sp.getBoolean(KEY_SHIFT_PASSTHRU, DEF_SHIFT_PASSTHRU));
+                    sp.getBoolean(KEY_SHIFT_PASSTHRU, DEF_SHIFT_PASSTHRU),
+                    sp.getBoolean(KEY_SMART_NUMBER, DEF_SMART_NUMBER));
         } catch (Throwable tr) {
             return defaults();
         }
@@ -127,6 +135,7 @@ final class ExtConfig {
                     .putBoolean(KEY_SYNC_BACK, c.syncBackToFramework)
                     .putBoolean(KEY_STRICT, c.strictFrameworkOnly)
                     .putBoolean(KEY_SHIFT_PASSTHRU, c.shiftPassThrough)
+                    .putBoolean(KEY_SMART_NUMBER, c.smartNumber)
                     .apply();
         } catch (Throwable tr) {
             // 落盘失败只影响"重启后不回默认"，不影响本次生效
@@ -139,7 +148,8 @@ final class ExtConfig {
                 + "-st" + (subtypeStrictOnStart ? 1 : 0)
                 + "-sb" + (syncBackToFramework ? 1 : 0)
                 + "-sk" + (strictFrameworkOnly ? 1 : 0)
-                + "-sp" + (shiftPassThrough ? 1 : 0);
+                + "-sp" + (shiftPassThrough ? 1 : 0)
+                + "-sn" + (smartNumber ? 1 : 0);
     }
 
     @Override
@@ -149,7 +159,8 @@ final class ExtConfig {
                 + " strictOnStart=" + subtypeStrictOnStart
                 + " syncBack=" + syncBackToFramework
                 + " strict=" + strictFrameworkOnly
-                + " shiftPass=" + shiftPassThrough;
+                + " shiftPass=" + shiftPassThrough
+                + " smartNumber=" + smartNumber;
     }
 
     // ------------------------------------------------------------------ 模块侧当前值

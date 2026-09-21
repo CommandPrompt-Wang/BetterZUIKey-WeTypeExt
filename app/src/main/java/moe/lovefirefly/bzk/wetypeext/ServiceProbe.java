@@ -152,6 +152,10 @@ final class ServiceProbe {
         WeTypeInternals.resolve(cl);
         // 内部类拿到之后才装「英文键盘联想闸门」（它要 hook N.k2）
         EnAssocGate.install(sModule, WeTypeInternals.nClass());
+        // 输入来源判定（物理键盘 vs 软键盘）—— TASK 2/3/4 的标点改写只作用于物理键
+        InputSource.install(sModule, cl);
+        // 提交文本管线（TASK 2/3/4 共用）
+        CommitHook.install(sModule, cl);
         // TASK 5：Shift 放行（修原生 Shift+方向键扩选）
         ShiftPassthrough.install(sModule, cl);
         // 严格模式：拒绝微信自己切语言（挂在总漏斗 N.m3 上，不碰按键）

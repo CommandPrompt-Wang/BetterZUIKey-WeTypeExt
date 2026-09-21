@@ -72,6 +72,11 @@ public class MainActivity extends Activity {
                         + "网页输入框本来就不受影响；若某个 App 对单独的 Shift 有反应，把它关掉即可。",
                 ExtConfig.KEY_SHIFT_PASSTHRU, cfg.shiftPassThrough);
 
+        addSwitch(root, "智能编号（数字后用半角标点）",
+                "数字后面的中文标点自动用半角：1。 → 1.、1） → 1)。"
+                        + "判据是「末字符是 。/） 且它前面是数字」，一起上屏或分两次上屏都能命中。",
+                ExtConfig.KEY_SMART_NUMBER, cfg.smartNumber);
+
         addHint(root, "\n切换后立即生效，无需重启微信。\n"
                 + "日志标签：BZK-WeTypeExt");
 

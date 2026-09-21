@@ -30,6 +30,7 @@ final class BroadcastConfig {
     static final String EXTRA_SYNC_BACK = ExtConfig.KEY_SYNC_BACK;
     static final String EXTRA_STRICT = ExtConfig.KEY_STRICT;
     static final String EXTRA_SHIFT_PASSTHRU = ExtConfig.KEY_SHIFT_PASSTHRU;
+    static final String EXTRA_SMART_NUMBER = ExtConfig.KEY_SMART_NUMBER;
 
     /** 回传状态用的 action（模块 → App，显式指定包名投递）。 */
     static final String ACTION_STATE = "moe.lovefirefly.bzk.wetypeext.STATE";
@@ -67,7 +68,9 @@ final class BroadcastConfig {
                             intent.getBooleanExtra(EXTRA_SYNC_BACK, ExtConfig.DEF_SYNC_BACK),
                             intent.getBooleanExtra(EXTRA_STRICT, ExtConfig.DEF_STRICT),
                             intent.getBooleanExtra(EXTRA_SHIFT_PASSTHRU,
-                                    ExtConfig.DEF_SHIFT_PASSTHRU));
+                                    ExtConfig.DEF_SHIFT_PASSTHRU),
+                            intent.getBooleanExtra(EXTRA_SMART_NUMBER,
+                                    ExtConfig.DEF_SMART_NUMBER));
                     ExtConfig.set(cfg);
                     ExtConfig.persist(c == null ? ctx : c, cfg);
                     Log.i(TAG, "config broadcast -> " + cfg);
