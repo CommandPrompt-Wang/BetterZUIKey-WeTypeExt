@@ -125,6 +125,10 @@ final class Hotkeys {
             for (HotkeyAction a : HotkeyAction.values()) {
                 final int[] c = HotkeyConfig.comboOf(map, a);
                 if (c[0] != kc) continue;
+                // 保底（用户口径）：单个键、一个修饰都没有的配置**一律忽略**
+                // —— 就算配置被强行改成那样（手改 prefs / 广播塞值），也永不当快捷键，
+                //    否则一个裸字母会被吞掉，整片打字都废。
+                if (c[1] == 0 && c[2] == 0 && (c.length < 4 || c[3] == 0)) continue;
                 if ((c[1] != 0) != shift) continue;
                 if ((c[2] != 0) != ctrl) continue;
                 if ((c.length >= 4 && c[3] != 0) != alt) continue;

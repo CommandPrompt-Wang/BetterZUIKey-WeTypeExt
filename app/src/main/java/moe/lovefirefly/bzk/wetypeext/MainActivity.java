@@ -215,6 +215,9 @@ public class MainActivity extends Activity {
                 }
                 if (HotkeyConfig.isModifierKey(keyCode)) return true;   // 修饰键本身不算
                 final int meta = event.getMetaState();
+                final boolean hasMod = (meta & (KeyEvent.META_SHIFT_ON | KeyEvent.META_CTRL_ON
+                        | KeyEvent.META_ALT_ON)) != 0;
+                if (!hasMod) return true;   // 单个键（没有修饰）：直接拒绝，不弹任何东西、也不改显示
                 combo[0] = keyCode;
                 combo[1] = (meta & KeyEvent.META_SHIFT_ON) != 0 ? 1 : 0;
                 combo[2] = (meta & KeyEvent.META_CTRL_ON) != 0 ? 1 : 0;
@@ -275,12 +278,7 @@ public class MainActivity extends Activity {
         final boolean shift = combo[1] != 0;
         final boolean ctrl = combo[2] != 0;
         final boolean alt = combo[3] != 0;
-        if (!shift && !ctrl && !alt) {                   // 没有修饰键：只提醒，不禁止
-            ask("警告", "这个组合没有修饰键，会把这个按键本身吞掉（"
-                    + HotkeyConfig.describe(combo[0], false, false, false)
-                    + "）。确定要这样设吗？", () -> commitCombo(a, combo));
-            return true;
-        }
+        if (!shift && !ctrl && !alt) return false;       // 兜底：单个键不受理（正常进不到这里）
         final HotkeyAction dup = findDuplicate(a, combo[0], shift, ctrl, alt);
         if (dup != null) {
             ask("警告", "组合键 " + HotkeyConfig.describe(combo[0], shift, ctrl, alt)

@@ -47,7 +47,14 @@ final class HotkeyConfig {
     /** 某个动作当前生效的组合键：[keyCode, shift, ctrl, alt]。 */
     static int[] comboOf(Map<String, int[]> map, HotkeyAction a) {
         final int[] v = map == null ? null : map.get(a.id);
-        if (v != null && v.length >= 4) return v;
+        if (v != null && v.length >= 4) {
+            // 保底：有键码但一个修饰都没有 ⇒ 当"未设置"看待（单个键会被当成打字键吞掉；
+            // 这样设置页显示成"未设置"，用户下次保存时也就自然把它清掉了）。
+            if (v[0] != 0 && v[1] == 0 && v[2] == 0 && v[3] == 0) {
+                return new int[]{0, 0, 0, 0};
+            }
+            return v;
+        }
         return new int[]{a.defKeyCode, a.defShift ? 1 : 0, a.defCtrl ? 1 : 0, a.defAlt ? 1 : 0};
     }
 
