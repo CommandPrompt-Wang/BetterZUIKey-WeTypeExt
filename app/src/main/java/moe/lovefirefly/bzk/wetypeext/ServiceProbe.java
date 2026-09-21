@@ -137,6 +137,12 @@ final class ServiceProbe {
         WeTypeInternals.resolve(cl);
         // 内部类拿到之后才装「英文键盘联想闸门」（它要 hook N.k2）
         EnAssocGate.install(sModule, WeTypeInternals.nClass());
+        // 引擎侧那一刀：建会话时按语言改 SessionConfig（不依赖混淆类）
+        SessionConfigGate.install(sModule, cl);
+        // 候选探针（诊断用，已收工）：搞清英文补全候选身上的标记
+        CandidateProbe.install(sModule, cl);
+        // 目标 2 的落点：英文键盘清空候选栏
+        EnCandidateFilter.install(sModule, cl);
     }
 
     /** 一次性把「框架看到的 subtype」与「微信内部键盘状态」打在一行，方便对照。 */

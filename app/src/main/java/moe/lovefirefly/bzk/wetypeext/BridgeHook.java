@@ -52,13 +52,19 @@ public class BridgeHook extends XposedModule {
      */
     static final boolean DEV_GATE_EN_ASSOC = true;
 
+    /** 候选探针：英文键盘时把候选的 flag/kind 打出来（诊断用，已收工）。 */
+    static final boolean DEV_CAND_PROBE = false;
+
+    /** 目标 2 的落点：英文键盘下清空候选栏（用户要的：不要任何联想/补全，字直接上屏）。 */
+    static final boolean DEV_FILTER_EN_CAND = true;
+
     /**
      * 每次改探针就 +1：日志里能看到它，用来判断"这个进程加载的是不是最新那份模块"。
      *
      * <p>踩过的坑：重装 APK 后如果目标进程没重启，LSPosed 仍用它启动时加载的旧代码
      * （实测 :hld 一直跑着旧版，导致新加的闸门看起来"没生效"）。
      */
-    static final int PROBE_BUILD = 2;
+    static final int PROBE_BUILD = 8;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 
