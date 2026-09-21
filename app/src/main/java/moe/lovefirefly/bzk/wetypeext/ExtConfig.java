@@ -30,6 +30,7 @@ final class ExtConfig {
     static final String KEY_TRANSLATE_ON_START = "subtypeStrictOnStart";
     static final String KEY_SYNC_BACK = "syncBackToFramework";
     static final String KEY_STRICT = "strictFrameworkOnly";
+    static final String KEY_SHIFT_PASSTHRU = "shiftPassThrough";
 
     // 默认值（界面、发送方、模块侧三处必须一致，否则会出现"界面显示开、实际是关"）
     static final boolean DEF_EN_NO_SUGGEST = true;
@@ -38,6 +39,8 @@ final class ExtConfig {
     static final boolean DEF_SYNC_BACK = true;
     /** 严格模式：语言只由系统框架决定。默认<b>关</b>（开了之后微信自己的 Ctrl+Shift 就不好使了）。 */
     static final boolean DEF_STRICT = false;
+    /** Shift 键放行（TASK 5）：见 {@link ShiftPassthrough}。默认开。 */
+    static final boolean DEF_SHIFT_PASSTHRU = true;
 
     /** 英文键盘不显示候选/联想（两种都去：打字过程中的补全 + 上屏后的下一个词）。 */
     final boolean enNoSuggest;
@@ -67,18 +70,23 @@ final class ExtConfig {
     /** 严格模式：拒绝微信自己切语言，只认框架 subtype。 */
     final boolean strictFrameworkOnly;
 
+    /** Shift 键放行：微信不再独占 Shift，宿主恢复修饰键跟踪（原生 Shift+方向键扩选）。 */
+    final boolean shiftPassThrough;
+
     ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart,
-            boolean syncBackToFramework, boolean strictFrameworkOnly) {
+            boolean syncBackToFramework, boolean strictFrameworkOnly,
+            boolean shiftPassThrough) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
         this.syncBackToFramework = syncBackToFramework;
         this.strictFrameworkOnly = strictFrameworkOnly;
+        this.shiftPassThrough = shiftPassThrough;
     }
 
     static ExtConfig defaults() {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
-                DEF_SYNC_BACK, DEF_STRICT);
+                DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU);
     }
 
     static ExtConfig load(SharedPreferences sp) {
@@ -89,7 +97,8 @@ final class ExtConfig {
                     sp.getBoolean(KEY_TRANSLATE, DEF_TRANSLATE),
                     sp.getBoolean(KEY_TRANSLATE_ON_START, DEF_TRANSLATE_ON_START),
                     sp.getBoolean(KEY_SYNC_BACK, DEF_SYNC_BACK),
-                    sp.getBoolean(KEY_STRICT, DEF_STRICT));
+                    sp.getBoolean(KEY_STRICT, DEF_STRICT),
+                    sp.getBoolean(KEY_SHIFT_PASSTHRU, DEF_SHIFT_PASSTHRU));
         } catch (Throwable tr) {
             return defaults();
         }
@@ -117,6 +126,7 @@ final class ExtConfig {
                     .putBoolean(KEY_TRANSLATE_ON_START, c.subtypeStrictOnStart)
                     .putBoolean(KEY_SYNC_BACK, c.syncBackToFramework)
                     .putBoolean(KEY_STRICT, c.strictFrameworkOnly)
+                    .putBoolean(KEY_SHIFT_PASSTHRU, c.shiftPassThrough)
                     .apply();
         } catch (Throwable tr) {
             // 落盘失败只影响"重启后不回默认"，不影响本次生效
@@ -128,7 +138,8 @@ final class ExtConfig {
                 + "-tr" + (subtypeTranslate ? 1 : 0)
                 + "-st" + (subtypeStrictOnStart ? 1 : 0)
                 + "-sb" + (syncBackToFramework ? 1 : 0)
-                + "-sk" + (strictFrameworkOnly ? 1 : 0);
+                + "-sk" + (strictFrameworkOnly ? 1 : 0)
+                + "-sp" + (shiftPassThrough ? 1 : 0);
     }
 
     @Override
@@ -137,7 +148,8 @@ final class ExtConfig {
                 + " translate=" + subtypeTranslate
                 + " strictOnStart=" + subtypeStrictOnStart
                 + " syncBack=" + syncBackToFramework
-                + " strict=" + strictFrameworkOnly;
+                + " strict=" + strictFrameworkOnly
+                + " shiftPass=" + shiftPassThrough;
     }
 
     // ------------------------------------------------------------------ 模块侧当前值

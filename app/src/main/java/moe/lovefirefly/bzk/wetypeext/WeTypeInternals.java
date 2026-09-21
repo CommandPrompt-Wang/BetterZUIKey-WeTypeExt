@@ -43,6 +43,7 @@ final class WeTypeInternals {
     private static volatile Method mO0;
     private static volatile Method mS1i;
     private static volatile Method mK3;
+    private static volatile Method mY0;
     private static volatile Method mJ1K;
 
     private WeTypeInternals() {}
@@ -100,6 +101,7 @@ final class WeTypeInternals {
             mS1i = findMethod(n, "S1", int.class);
             if (mS1i == null) mS1i = findChinesePredicate(n);
             mK3 = findMethod(n, "k3", int.class, android.os.Bundle.class);
+            mY0 = findMethod(n, "y0");
             Log.i(TAG, "internals N: singleton=" + (sN != null)
                     + " n0=" + (mN0 != null) + " u0=" + (mU0 != null)
                     + " O0=" + (mO0 != null) + " S1(int)=" + (mS1i != null)
@@ -223,6 +225,25 @@ final class WeTypeInternals {
         } catch (Throwable tr) {
             Log.w(TAG, "switchKeyboard(" + keyboardValue + ") failed: " + tr);
             return false;
+        }
+    }
+
+    /**
+     * 候选条可见性（{@code N.y0()} 拿到候选 View 再看 visibility）。
+     *
+     * <p>TASK 5 相关：候选条可见时，微信会把方向键交给候选条导航
+     * （{@code hardware/d.n} 的 19–23 → {@code h()} → {@code P()}），这会影响 Shift+方向键。
+     */
+    static String candidateBar() {
+        final Object self = sN;
+        if (mY0 == null || self == null) return "?";
+        try {
+            final Object v = mY0.invoke(self);
+            if (!(v instanceof android.view.View)) return "null";
+            final int vis = ((android.view.View) v).getVisibility();
+            return vis == android.view.View.VISIBLE ? "VISIBLE" : "vis" + vis;
+        } catch (Throwable tr) {
+            return "err";
         }
     }
 

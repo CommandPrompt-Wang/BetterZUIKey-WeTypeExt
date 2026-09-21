@@ -36,6 +36,7 @@ final class ConfigSender {
             i.putExtra(BroadcastConfig.EXTRA_TRANSLATE_ON_START, cfg.subtypeStrictOnStart);
             i.putExtra(BroadcastConfig.EXTRA_SYNC_BACK, cfg.syncBackToFramework);
             i.putExtra(BroadcastConfig.EXTRA_STRICT, cfg.strictFrameworkOnly);
+            i.putExtra(BroadcastConfig.EXTRA_SHIFT_PASSTHRU, cfg.shiftPassThrough);
             ctx.sendBroadcast(i);
             Log.i(TAG, "config sent -> " + cfg);
         } catch (Throwable tr) {

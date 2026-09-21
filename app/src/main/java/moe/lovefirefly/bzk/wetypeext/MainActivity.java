@@ -65,6 +65,13 @@ public class MainActivity extends Activity {
                         + "注意：打开后 Ctrl+Shift 不再切语言（这正是严格模式的意思）。",
                 ExtConfig.KEY_STRICT, cfg.strictFrameworkOnly);
 
+        addSwitch(root, "Shift 键放行（修物理键盘扩选）",
+                "微信在硬件键盘模式下会独占 Shift 按下，导致原生输入框以为「没按 Shift」，"
+                        + "Shift+方向键退化成普通移动。打开后微信不再独占 Shift（它自己的切语言逻辑不受影响），"
+                        + "原生的逐字/按词扩选恢复正常。\n"
+                        + "网页输入框本来就不受影响；若某个 App 对单独的 Shift 有反应，把它关掉即可。",
+                ExtConfig.KEY_SHIFT_PASSTHRU, cfg.shiftPassThrough);
+
         addHint(root, "\n切换后立即生效，无需重启微信。\n"
                 + "日志标签：BZK-WeTypeExt");
 

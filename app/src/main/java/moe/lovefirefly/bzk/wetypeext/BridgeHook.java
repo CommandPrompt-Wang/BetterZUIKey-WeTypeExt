@@ -48,7 +48,11 @@ public class BridgeHook extends XposedModule {
     /** 候选探针：英文键盘时把候选的 flag/kind 打出来（诊断用，已收工，默认关）。 */
     static final boolean DEV_CAND_PROBE = false;
 
-    static final int PROBE_BUILD = 13;
+    /** TASK 5 诊断：物理键分发 + 选区变化（只打日志，不改行为）。 */
+    static final boolean DEV_SELECT_PROBE = true;
+
+
+    static final int PROBE_BUILD = 16;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 

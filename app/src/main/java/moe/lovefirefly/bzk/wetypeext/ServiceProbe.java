@@ -152,6 +152,8 @@ final class ServiceProbe {
         WeTypeInternals.resolve(cl);
         // 内部类拿到之后才装「英文键盘联想闸门」（它要 hook N.k2）
         EnAssocGate.install(sModule, WeTypeInternals.nClass());
+        // TASK 5：Shift 放行（修原生 Shift+方向键扩选）
+        ShiftPassthrough.install(sModule, cl);
         // 严格模式：拒绝微信自己切语言（挂在总漏斗 N.m3 上，不碰按键）
         SubtypeGuard.install(sModule, WeTypeInternals.nClass());
         // 引擎侧那一刀：建会话时按语言改 SessionConfig（不依赖混淆类）
@@ -160,6 +162,8 @@ final class ServiceProbe {
         CandidateProbe.install(sModule, cl);
         // 目标 2 的落点：英文键盘清空候选栏
         EnCandidateFilter.install(sModule, cl);
+        // TASK 5 诊断探针（只打日志）
+        SelectProbe.install(sModule, cl);
         // 配置通道：在目标进程里注册广播接收器（改设置即时生效，不用重启微信）
         BroadcastConfig.start(WeTypeInternals.appContext());
     }
