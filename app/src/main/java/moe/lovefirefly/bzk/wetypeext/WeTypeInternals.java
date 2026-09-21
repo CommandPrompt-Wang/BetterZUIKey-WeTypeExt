@@ -28,6 +28,21 @@ final class WeTypeInternals {
 
     private static final String CLS_N = "com.tencent.wetype.plugin.hld.model.N";
     private static final String CLS_J1 = "com.tencent.wetype.plugin.hld.utils.j1";
+    /** 键盘动作分发器（jadx 名 {@code key/d}）：全局函数码都汇到它的 {@code O(int,Object)}。 */
+    private static final String CLS_KEY_D = "com.tencent.wetype.plugin.hld.key.d";
+    /** 键盘/面板枚举（jadx 名 {@code keyboard/EnumC2058t}）。 */
+    private static final String CLS_PANEL_ENUM = "com.tencent.wetype.plugin.hld.keyboard.t";
+
+    /**
+     * 函数码（TASK 6 用）—— 来自 APK 里键盘布局 JSON 的 {@code touchFunctionCode}
+     * （{@code assets/keyboard/output/*.json}，键 id 一眼能认）：
+     * <pre>
+     *   1=删除 2=回车/发送 3=Shift 4=符号 5/15=数字 6=空格 7=切中文 8=切英文 9/24=返回
+     *   19/20=手写全屏/半屏 22=表情(emoji) 23=拼音 25=语音(voice) 26=ABC 27=特殊→26 键
+     * </pre>
+     */
+    static final int FN_EMOJI = 22;
+    static final int FN_VOICE = 25;
 
     /** 中文九键 / 中文 26 键 / 英文 26 键 —— 来自 keyboard.t（jadx 名 EnumC2058t）。 */
     static final int KB_CHINESE_T9 = 0;
@@ -45,6 +60,10 @@ final class WeTypeInternals {
     private static volatile Method mK3;
     private static volatile Method mY0;
     private static volatile Method mJ1K;
+    private static volatile Object sKeyD;
+    private static volatile Method mFireFn;
+    private static volatile Method mR3;
+    private static volatile Class<?> sPanelEnum;
 
     private WeTypeInternals() {}
 
@@ -110,6 +129,26 @@ final class WeTypeInternals {
             Log.w(TAG, "internals N unresolved: " + tr);
         }
         try {
+            final Class<?> kd = Class.forName(CLS_KEY_D, false, cl);
+            sKeyD = findSingleton(kd);
+            mFireFn = findMethod(kd, "O", int.class, Object.class);
+            Log.i(TAG, "internals key.d: singleton=" + (sKeyD != null)
+                    + " O(int,Object)=" + (mFireFn != null));
+        } catch (Throwable tr) {
+            Log.w(TAG, "internals key.d unresolved: " + tr);
+        }
+        try {
+            sPanelEnum = Class.forName(CLS_PANEL_ENUM, false, cl);
+            // ⚠️ r3 在 dex 里是**静态**方法，签名首参就是 N 自己：
+            //    r3(N, 面板枚举, Bundle, 默认参数掩码, 标记) —— 按 jadx 的 N.r3(n10, …) 写法猜成
+            //    实例方法会 getDeclaredMethod 找不到（实测 r3=false）。
+            mR3 = findMethod(nClassOrNull(), "r3", nClassOrNull(), sPanelEnum,
+                    android.os.Bundle.class, int.class, Object.class);
+            Log.i(TAG, "internals panel: enum=" + sPanelEnum + " r3=" + (mR3 != null));
+        } catch (Throwable tr) {
+            Log.w(TAG, "internals panel unresolved: " + tr);
+        }
+        try {
             final Class<?> j1 = Class.forName(CLS_J1, false, cl);
             sJ1 = findSingleton(j1);
             mJ1K = findMethod(j1, "K", boolean.class);
@@ -134,7 +173,12 @@ final class WeTypeInternals {
         return null;
     }
 
+    private static Class<?> nClassOrNull() {
+        return sNClass;
+    }
+
     private static Method findMethod(Class<?> c, String name, Class<?>... params) {
+        if (c == null) return null;
         try {
             final Method m = c.getDeclaredMethod(name, params);
             m.setAccessible(true);
@@ -244,6 +288,58 @@ final class WeTypeInternals {
             return vis == android.view.View.VISIBLE ? "VISIBLE" : "vis" + vis;
         } catch (Throwable tr) {
             return "err";
+        }
+    }
+
+    /**
+     * 触发微信自己的一个"函数"（工具栏/键盘键共用的那条路 {@code key.d.O(int,Object)}）。
+     *
+     * <p>为什么走它而不是模拟按键：这些功能本来就是"函数码"驱动的（布局 JSON 里写着
+     * {@code touchFunctionCode}），直接调等于替用户点了那个键，不依赖焦点/工具栏状态。
+     *
+     * @return true = 已发起
+     */
+    static boolean fireFunction(int code) {
+        final Object d = sKeyD;
+        final Method m = mFireFn;
+        if (d == null || m == null) return false;
+        try {
+            m.invoke(d, code, null);
+            Log.i(TAG, "fireFunction(" + code + ") ok");
+            return true;
+        } catch (Throwable tr) {
+            Log.w(TAG, "fireFunction(" + code + ") failed: " + tr);
+            return false;
+        }
+    }
+
+    /**
+     * 打开「常用语 / 剪贴板」面板（{@code EnumC2058t.CustomPhraseAndClipboard}）。
+     *
+     * <p>它没有函数码（键盘布局里没有这个键，是工具栏/候选区的入口），所以走面板切换
+     * {@code N.r3(N, 面板枚举, Bundle, 默认参数掩码, 标记)}。枚举项按<b>名字</b>找
+     * （Kotlin 枚举名保留了，找不到就扫一遍名字里带 Clipboard 的）。
+     */
+    static boolean openClipboardPanel() {
+        final Object self = sN;
+        final Method r3 = mR3;
+        if (self == null || r3 == null || sPanelEnum == null) return false;
+        try {
+            Object panel = null;
+            for (Object c : sPanelEnum.getEnumConstants()) {
+                final String n = String.valueOf(c);
+                if (n.contains("Clipboard")) { panel = c; break; }
+            }
+            if (panel == null) {
+                Log.w(TAG, "openClipboardPanel: 没找到 Clipboard 面板项");
+                return false;
+            }
+            r3.invoke(null, self, panel, null, 2, null);
+            Log.i(TAG, "openClipboardPanel: " + panel);
+            return true;
+        } catch (Throwable tr) {
+            Log.w(TAG, "openClipboardPanel failed: " + tr);
+            return false;
         }
     }
 

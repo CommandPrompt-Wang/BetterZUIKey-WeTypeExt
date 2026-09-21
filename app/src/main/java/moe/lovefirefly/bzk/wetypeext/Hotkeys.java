@@ -19,6 +19,9 @@ import io.github.libxposed.api.XposedModule;
  * {@link ExtConfig#KEY_HOTKEYS}（格式见 {@link HotkeyConfig}），设置页的「快捷键」区可改。
  * 新功能要加快捷键 ⇒ 在 {@link HotkeyAction} 加一个条目 + 在 {@link #invoke} 加一个分支。
  *
+ * <p>组合键按<b>完整组合</b>判定：键码 + Shift + Ctrl + Alt 四项全等才算命中
+ * （所以 Ctrl+Shift+P 这类别人的组合键一个都不受影响）。
+ *
  * <p>吞键用 {@code return Boolean.TRUE}（不 proceed），并弹一行 {@link Banner} 提示 ——
  * 不用 Toast（会被系统按通知设置拦掉，搜狗那边实测过）。
  *
@@ -100,7 +103,6 @@ final class Hotkeys {
             final boolean shift = (meta & KeyEvent.META_SHIFT_ON) != 0;
             final boolean ctrl = (meta & KeyEvent.META_CTRL_ON) != 0;
             final boolean alt = (meta & KeyEvent.META_ALT_ON) != 0;
-            if (alt) return false;   // 带 Alt 的组合不参与（先不做）
 
             final Map<String, int[]> map = combos();
             for (HotkeyAction a : HotkeyAction.values()) {
@@ -108,6 +110,7 @@ final class Hotkeys {
                 if (c[0] != kc) continue;
                 if ((c[1] != 0) != shift) continue;
                 if ((c[2] != 0) != ctrl) continue;
+                if ((c.length >= 4 && c[3] != 0) != alt) continue;
                 if (invoke(a, ev, down)) return true;
             }
             return false;
@@ -129,6 +132,28 @@ final class Hotkeys {
                     PunctState.setFullwidth(ctx, on);
                     Log.i(TAG, "hotkey " + a.id + " -> fullwidth=" + on);
                     Banner.show("全角模式：" + (on ? "开" : "关"));
+                }
+                return true;
+            }
+            // ---- TASK 6：微信功能入口（都"吞键"，否则那个字母会跟着上屏）----
+            case VOICE_INPUT:
+            case EMOJI:
+            case CLIPBOARD: {
+                if (down && ev.getRepeatCount() == 0) {
+                    final boolean ok;
+                    final String what;
+                    if (a == HotkeyAction.VOICE_INPUT) {
+                        what = "语音输入";
+                        ok = WeTypeInternals.fireFunction(WeTypeInternals.FN_VOICE);
+                    } else if (a == HotkeyAction.EMOJI) {
+                        what = "表情";
+                        ok = WeTypeInternals.fireFunction(WeTypeInternals.FN_EMOJI);
+                    } else {
+                        what = "剪贴板 / 常用语";
+                        ok = WeTypeInternals.openClipboardPanel();
+                    }
+                    Log.i(TAG, "hotkey " + a.id + " -> " + what + " ok=" + ok);
+                    Banner.show(ok ? what : what + "：入口不可用");
                 }
                 return true;
             }

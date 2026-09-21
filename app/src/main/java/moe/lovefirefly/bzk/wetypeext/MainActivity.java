@@ -131,7 +131,7 @@ public class MainActivity extends Activity {
     /** 「快捷键」区：注册表里每个动作一行，点行进入录制（按 Back 取消）。 */
     private void addHotkeySection(LinearLayout root) {
         addTitle(root, "\n快捷键");
-        addHint(root, "点一行，然后按下你想用的组合键（至少要有一个修饰键）；"
+        addHint(root, "点一行，然后按下你想用的组合键（Shift / Ctrl / Alt 至少有一个）；"
                 + "退格 = 清除这一项，Esc / 返回 = 取消。新功能加的快捷键会自动出现在这里。");
         for (HotkeyAction a : HotkeyAction.values()) {
             final TextView row = new TextView(this);
@@ -153,7 +153,8 @@ public class MainActivity extends Activity {
         for (java.util.Map.Entry<HotkeyAction, TextView> e : hotkeyRows.entrySet()) {
             final HotkeyAction a = e.getKey();
             final int[] c = HotkeyConfig.comboOf(map, a);
-            final String combo = HotkeyConfig.describe(c[0], c[1] != 0, c[2] != 0);
+            final String combo = HotkeyConfig.describe(c[0], c[1] != 0, c[2] != 0,
+                    c.length >= 4 && c[3] != 0);
             e.getValue().setText(recording == a
                     ? a.label + "：请按下组合键…（退格清除 / Esc 取消）"
                     : a.label + "：" + combo);
@@ -174,7 +175,8 @@ public class MainActivity extends Activity {
                 // 退格 = 清除当前动作的绑定（设为"未设置"）
                 if (kc == KeyEvent.KEYCODE_DEL) {
                     final String cleared = HotkeyConfig.withCombo(
-                            prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, 0, false, false);
+                            prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, 0, false, false,
+                            false);
                     prefs.edit().putString(ExtConfig.KEY_HOTKEYS, cleared).apply();
                     recording = null;
                     refreshHotkeyRows();
@@ -185,12 +187,14 @@ public class MainActivity extends Activity {
                     final int meta = event.getMetaState();
                     final boolean shift = (meta & KeyEvent.META_SHIFT_ON) != 0;
                     final boolean ctrl = (meta & KeyEvent.META_CTRL_ON) != 0;
-                    if (!shift && !ctrl) {
+                    final boolean alt = (meta & KeyEvent.META_ALT_ON) != 0;
+                    if (!shift && !ctrl && !alt) {
                         // 没有修饰键的组合太容易误触，不受理
                         return true;
                     }
                     final String next = HotkeyConfig.withCombo(
-                            prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, kc, shift, ctrl);
+                            prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, kc, shift, ctrl,
+                            alt);
                     prefs.edit().putString(ExtConfig.KEY_HOTKEYS, next).apply();
                     recording = null;
                     refreshHotkeyRows();
