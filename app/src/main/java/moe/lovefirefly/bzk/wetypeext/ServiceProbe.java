@@ -176,11 +176,13 @@ final class ServiceProbe {
         IcTrace.install(sModule, cl);
         // TASK 1 括号配对总开关（关掉时在 IC 层拆掉自动补的那半截）
         PairGate.install(sModule, cl);
-        // 诊断：谁把输入法窗口藏了 + 微信函数分发器入口
-        HideProbe.install(sModule, cl);
-        HideProbe.installFunctionProbe(sModule, cl);
-        HideProbe.installServiceKeyProbe(sModule, cl);
-        HideProbe.installPanelProbe(sModule, cl);
+        // 诊断探针（谁藏了窗口 / 函数分发器 / 面板 bundle），默认全关，排查时再开
+        if (BridgeHook.DEV_HIDE_PROBE) {
+            HideProbe.install(sModule, cl);
+            HideProbe.installFunctionProbe(sModule, cl);
+            HideProbe.installServiceKeyProbe(sModule, cl);
+            HideProbe.installPanelProbe(sModule, cl);
+        }
         // 配置通道：在目标进程里注册广播接收器（改设置即时生效，不用重启微信）
         BroadcastConfig.start(WeTypeInternals.appContext());
     }

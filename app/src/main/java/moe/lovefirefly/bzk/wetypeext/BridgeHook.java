@@ -48,8 +48,8 @@ public class BridgeHook extends XposedModule {
     /** 候选探针：英文键盘时把候选的 flag/kind 打出来（诊断用，已收工，默认关）。 */
     static final boolean DEV_CAND_PROBE = false;
 
-    /** TASK 5 诊断：物理键分发 + 选区变化（只打日志，不改行为）。 */
-    static final boolean DEV_SELECT_PROBE = true;
+    /** TASK 5 诊断：物理键分发 + 选区变化（只打日志，不改行为）。已收工，默认关。 */
+    static final boolean DEV_SELECT_PROBE = false;
 
     /** TASK 1 诊断：把 IME 侧每一次 InputConnection 调用原样打出来（只打日志，不改行为）。 */
     static final boolean DEV_IC_TRACE = false;
@@ -59,12 +59,19 @@ public class BridgeHook extends XposedModule {
 
     /**
      * 诊断：热键（语音/表情/剪贴板）**裸奔** —— 只切面板，不弹 Banner、不补显示。
-     * 目的是把"面板切换"和"Banner/补显示"两个嫌疑分开。
+     * 目的是把"面板切换"和"Banner/补显示"两个嫌疑分开。已收工，默认关。
      */
     static final boolean DEV_HOTKEY_PLAIN = false;
 
+    /**
+     * 开发期调试广播（{@code dbgPanel} / {@code dbgFunc} / {@code dbgShow}，见
+     * {@link BroadcastConfig}）：用来在设备上自己切面板、跑函数码、打 View 树，不用真人按键。
+     * <b>正式使用请保持 false</b>（它是个对外可收的广播，虽然只影响输入法内部状态）。
+     */
+    static final boolean DEV_DEBUG_CHANNEL = false;
 
-    static final int PROBE_BUILD = 58;
+
+    static final int PROBE_BUILD = 59;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 

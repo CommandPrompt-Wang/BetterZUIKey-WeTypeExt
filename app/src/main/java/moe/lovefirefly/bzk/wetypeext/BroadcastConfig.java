@@ -113,8 +113,8 @@ final class BroadcastConfig {
                     if (intent.getBooleanExtra(EXTRA_WANT_STATE, false)) {
                         PunctState.mirrorNow(c == null ? ctx : c);
                     }
-                    // 开发期调试：切面板 / 打 View 树（我自己在设备上验证用）
-                    if (BridgeHook.DEV_PROBE) {
+                    // 开发期调试：切面板 / 跑函数码 / 打 View 树（默认关，见 DEV_DEBUG_CHANNEL）
+                    if (BridgeHook.DEV_DEBUG_CHANNEL) {
                         final int panel = intent.getIntExtra(EXTRA_DBG_PANEL, 0);
                         final boolean dump = intent.getBooleanExtra(EXTRA_DBG_DUMP, false);
                         if (panel != 0) {
