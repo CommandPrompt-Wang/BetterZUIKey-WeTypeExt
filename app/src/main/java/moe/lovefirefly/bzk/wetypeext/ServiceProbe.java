@@ -42,6 +42,11 @@ final class ServiceProbe {
 
     private static volatile boolean sInstalled;
     private static volatile Object sService;
+
+    /** IME 服务实例（{@link SubtypeSync} 要用它调 switchToNextInputMethod）。 */
+    static Object service() {
+        return sService;
+    }
     private static volatile ClassLoader sCl;
     private static volatile XposedModule sModule;
     private static volatile boolean sInternalsTried;
@@ -147,6 +152,8 @@ final class ServiceProbe {
         WeTypeInternals.resolve(cl);
         // 内部类拿到之后才装「英文键盘联想闸门」（它要 hook N.k2）
         EnAssocGate.install(sModule, WeTypeInternals.nClass());
+        // 严格模式：拒绝微信自己切语言（挂在总漏斗 N.m3 上，不碰按键）
+        SubtypeGuard.install(sModule, WeTypeInternals.nClass());
         // 引擎侧那一刀：建会话时按语言改 SessionConfig（不依赖混淆类）
         SessionConfigGate.install(sModule, cl);
         // 候选探针（诊断用，已收工）：搞清英文补全候选身上的标记
@@ -183,7 +190,7 @@ final class ServiceProbe {
      * 所以：先反射问服务本体（最准），失败再退到公开的
      * {@code InputMethodManager.getCurrentInputMethodSubtype()}。
      */
-    private static InputMethodSubtype currentSubtype() {
+    static InputMethodSubtype currentSubtype() {
         final Object self = sService;
         if (self != null) {
             try {

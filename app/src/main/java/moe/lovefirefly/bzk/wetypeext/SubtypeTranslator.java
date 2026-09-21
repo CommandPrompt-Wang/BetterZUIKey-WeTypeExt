@@ -82,6 +82,7 @@ final class SubtypeTranslator {
         }
 
         final int target = wantEnglish ? WeTypeInternals.KB_ENGLISH_QWERTY : chineseTarget();
+        SubtypeGuard.noteOurs(target);   // 严格模式别把自己拦了
         final boolean ok = WeTypeInternals.switchKeyboard(target);
         Log.i(TAG, "translate[" + why + "] locale=" + locale
                 + " cur=" + cur + " -> " + target + " " + (ok ? "ok" : "FAILED"));

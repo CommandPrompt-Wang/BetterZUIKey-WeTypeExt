@@ -28,11 +28,16 @@ final class ExtConfig {
     static final String KEY_EN_NO_SUGGEST = "enNoSuggest";
     static final String KEY_TRANSLATE = "subtypeTranslate";
     static final String KEY_TRANSLATE_ON_START = "subtypeStrictOnStart";
+    static final String KEY_SYNC_BACK = "syncBackToFramework";
+    static final String KEY_STRICT = "strictFrameworkOnly";
 
     // 默认值（界面、发送方、模块侧三处必须一致，否则会出现"界面显示开、实际是关"）
     static final boolean DEF_EN_NO_SUGGEST = true;
     static final boolean DEF_TRANSLATE = true;
     static final boolean DEF_TRANSLATE_ON_START = true;
+    static final boolean DEF_SYNC_BACK = true;
+    /** 严格模式：语言只由系统框架决定。默认<b>关</b>（开了之后微信自己的 Ctrl+Shift 就不好使了）。 */
+    static final boolean DEF_STRICT = false;
 
     /** 英文键盘不显示候选/联想（两种都去：打字过程中的补全 + 上屏后的下一个词）。 */
     final boolean enNoSuggest;
@@ -46,14 +51,34 @@ final class ExtConfig {
      */
     final boolean subtypeStrictOnStart;
 
-    ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart) {
+    /**
+     * 微信<b>内部</b>切换语言后，把框架 subtype 回写成一致（反向同步）。
+     *
+     * <p>动机：微信自己切中英（Ctrl+Shift / 工具栏中英键）<b>不告诉框架</b>，
+     * 于是框架以为还是中文、系统与 BetterZUIKey 的语言状态就与真实语言脱节。
+     * 回写之后就双向一致，严格模式关着也不会有"不同步"的问题。
+     *
+     * <p>⚠️ 本功能<b>不拦按键</b>：只在"键盘语言确实变了"之后动作（观测 {@code N.k3}），
+     * 所以 Ctrl+Shift+P 这类组合键一个都不受影响（搜狗组件曾在按键层吞 Ctrl+Shift，
+     * 导致所有 Ctrl+Shift+X 热键时灵时不灵，这里从设计上避开）。
+     */
+    final boolean syncBackToFramework;
+
+    /** 严格模式：拒绝微信自己切语言，只认框架 subtype。 */
+    final boolean strictFrameworkOnly;
+
+    ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart,
+            boolean syncBackToFramework, boolean strictFrameworkOnly) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
+        this.syncBackToFramework = syncBackToFramework;
+        this.strictFrameworkOnly = strictFrameworkOnly;
     }
 
     static ExtConfig defaults() {
-        return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START);
+        return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
+                DEF_SYNC_BACK, DEF_STRICT);
     }
 
     static ExtConfig load(SharedPreferences sp) {
@@ -62,7 +87,9 @@ final class ExtConfig {
             return new ExtConfig(
                     sp.getBoolean(KEY_EN_NO_SUGGEST, DEF_EN_NO_SUGGEST),
                     sp.getBoolean(KEY_TRANSLATE, DEF_TRANSLATE),
-                    sp.getBoolean(KEY_TRANSLATE_ON_START, DEF_TRANSLATE_ON_START));
+                    sp.getBoolean(KEY_TRANSLATE_ON_START, DEF_TRANSLATE_ON_START),
+                    sp.getBoolean(KEY_SYNC_BACK, DEF_SYNC_BACK),
+                    sp.getBoolean(KEY_STRICT, DEF_STRICT));
         } catch (Throwable tr) {
             return defaults();
         }
@@ -88,6 +115,8 @@ final class ExtConfig {
                     .putBoolean(KEY_EN_NO_SUGGEST, c.enNoSuggest)
                     .putBoolean(KEY_TRANSLATE, c.subtypeTranslate)
                     .putBoolean(KEY_TRANSLATE_ON_START, c.subtypeStrictOnStart)
+                    .putBoolean(KEY_SYNC_BACK, c.syncBackToFramework)
+                    .putBoolean(KEY_STRICT, c.strictFrameworkOnly)
                     .apply();
         } catch (Throwable tr) {
             // 落盘失败只影响"重启后不回默认"，不影响本次生效
@@ -97,14 +126,18 @@ final class ExtConfig {
     String signature() {
         return "en" + (enNoSuggest ? 1 : 0)
                 + "-tr" + (subtypeTranslate ? 1 : 0)
-                + "-st" + (subtypeStrictOnStart ? 1 : 0);
+                + "-st" + (subtypeStrictOnStart ? 1 : 0)
+                + "-sb" + (syncBackToFramework ? 1 : 0)
+                + "-sk" + (strictFrameworkOnly ? 1 : 0);
     }
 
     @Override
     public String toString() {
         return "enNoSuggest=" + enNoSuggest
                 + " translate=" + subtypeTranslate
-                + " strictOnStart=" + subtypeStrictOnStart;
+                + " strictOnStart=" + subtypeStrictOnStart
+                + " syncBack=" + syncBackToFramework
+                + " strict=" + strictFrameworkOnly;
     }
 
     // ------------------------------------------------------------------ 模块侧当前值

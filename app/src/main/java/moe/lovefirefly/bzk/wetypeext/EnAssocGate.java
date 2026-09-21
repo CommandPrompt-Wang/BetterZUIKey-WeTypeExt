@@ -67,10 +67,14 @@ final class EnAssocGate {
             final Method k3 = nClass.getDeclaredMethod("k3", int.class, android.os.Bundle.class);
             k3.setAccessible(true);
             module.hook(k3).intercept(chain -> {
-                final Object v = chain.getArg(0);
-                Log.i(TAG, "switchKeyboard -> " + v
-                        + " (zh=" + WeTypeInternals.isChineseKeyboard(asInt(v)) + ")");
-                return chain.proceed();
+                final Integer kv = asInt(chain.getArg(0));
+                Log.i(TAG, "switchKeyboard -> " + kv
+                        + " (zh=" + WeTypeInternals.isChineseKeyboard(kv) + ")");
+                final Object r = chain.proceed();
+                // 反向同步：微信内部切了语言 ⇒ 把框架 subtype 也改成一致。
+                // 注意这是"观测结果"而不是"拦按键"：Ctrl+Shift / Ctrl+Shift+P 都不受影响。
+                if (kv != null) SubtypeSync.onKeyboardChanged(kv.intValue());
+                return r;
             });
             Log.i(TAG, "EnAssocGate: hooked k3(int, Bundle)");
         } catch (Throwable tr) {
