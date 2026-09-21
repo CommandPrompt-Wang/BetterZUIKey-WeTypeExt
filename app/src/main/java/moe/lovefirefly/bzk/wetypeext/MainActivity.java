@@ -160,6 +160,7 @@ public class MainActivity extends Activity {
             row.addView(label);
 
             final android.widget.Button btn = new android.widget.Button(this);
+            btn.setAllCaps(false);          // Android 默认给按钮文本 toUpperCase，这里要原样
             btn.setOnClickListener(v -> openHotkeyDialog(a));
             hotkeyButtons.put(a, btn);
             row.addView(btn);
@@ -241,6 +242,15 @@ public class MainActivity extends Activity {
                 .setView(box)
                 .setPositiveButton("确定", (d, w) -> applyCombo(a, combo))
                 .setNegativeButton("取消", null)
+                .setNeutralButton("恢复默认", (d, w) -> {
+                    // 填回该动作的出厂组合键，再由「确定」保存（不直接落盘，免得手滑）
+                    combo[0] = a.defKeyCode;
+                    combo[1] = a.defShift ? 1 : 0;
+                    combo[2] = a.defCtrl ? 1 : 0;
+                    combo[3] = a.defAlt ? 1 : 0;
+                    field.setText(HotkeyConfig.describe(combo[0], combo[1] != 0, combo[2] != 0,
+                            combo[3] != 0));
+                })
                 .create();
         dlg.setOnDismissListener(d -> ConfigSender.sendRecording(this, false));
         dlg.show();

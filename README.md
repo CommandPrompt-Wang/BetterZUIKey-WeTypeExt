@@ -1,6 +1,20 @@
-# BetterZUIKey-WeTypeExt
+<div align="center">
 
-BetterZUIKey 的微信输入法（`com.tencent.wetype` / WeType）组件。
+<h1>微信输入法增强</h1>
+<img src="https://raw.githubusercontent.com/CommandPrompt-Wang/BetterZUIKey-WeTypeExt/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="120" alt="微信输入法增强">
+
+<p></p>
+<p>简体中文</p>
+
+[![Android](https://img.shields.io/badge/API-27%2B-green)](https://developer.android.com/about/versions/8.1) [![Xposed](https://img.shields.io/badge/Xposed-LSPosed-blue)](https://github.com/LSPosed/LSPosed) [![Java](https://img.shields.io/badge/Java-17-orange)](https://openjdk.org/projects/jdk/17/) [![License](https://img.shields.io/badge/License-GPL--3.0-orange)](https://github.com/CommandPrompt-Wang/BetterZUIKey-WeTypeExt/blob/main/LICENSE)
+
+<p>把微信输入法的中/英语言暴露给系统框架，并给它的标点、配对、快捷键做一层可控的补强，
+让 <a href="https://github.com/CommandPrompt-Wang/BetterZUIKey">BetterZUIKey</a> 那套输入法快捷键对微信输入法也能用</p>
+
+</div>
+
+微信输入法（`com.tencent.wetype` / WeType）的 LSPosed 组件，是
+<a href="https://github.com/CommandPrompt-Wang/BetterZUIKey">BetterZUIKey</a> 的输入法适配之一。
 
 IME 类 `com.tencent.wetype.plugin.hld.WxHldService`，跑在 `:hld` 进程，且**只有这一个**
 `InputMethodService` 子类（直接继承框架，中间没有别的层）。

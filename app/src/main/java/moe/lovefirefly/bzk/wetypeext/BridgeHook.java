@@ -64,7 +64,7 @@ public class BridgeHook extends XposedModule {
     static final boolean DEV_HOTKEY_PLAIN = false;
 
 
-    static final int PROBE_BUILD = 57;
+    static final int PROBE_BUILD = 58;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 
