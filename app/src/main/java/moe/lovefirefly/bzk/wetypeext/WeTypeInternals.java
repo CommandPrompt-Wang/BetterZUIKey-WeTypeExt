@@ -42,6 +42,7 @@ final class WeTypeInternals {
     private static volatile Method mU0;
     private static volatile Method mO0;
     private static volatile Method mS1i;
+    private static volatile Method mK3;
     private static volatile Method mJ1K;
 
     private WeTypeInternals() {}
@@ -87,9 +88,11 @@ final class WeTypeInternals {
             mO0 = findMethod(n, "O0");
             mS1i = findMethod(n, "S1", int.class);
             if (mS1i == null) mS1i = findChinesePredicate(n);
+            mK3 = findMethod(n, "k3", int.class, android.os.Bundle.class);
             Log.i(TAG, "internals N: singleton=" + (sN != null)
                     + " n0=" + (mN0 != null) + " u0=" + (mU0 != null)
-                    + " O0=" + (mO0 != null) + " S1(int)=" + (mS1i != null));
+                    + " O0=" + (mO0 != null) + " S1(int)=" + (mS1i != null)
+                    + " k3(int,Bundle)=" + (mK3 != null));
         } catch (Throwable tr) {
             Log.w(TAG, "internals N unresolved: " + tr);
         }
@@ -189,6 +192,26 @@ final class WeTypeInternals {
             return (Boolean) mS1i.invoke(self, value.intValue());
         } catch (Throwable tr) {
             return null;
+        }
+    }
+
+    /**
+     * 切键盘（{@code N.k3(int, Bundle)}，真实 dex 名）。
+     *
+     * <p>内部走 {@code l3 -> m3}，后者在<b>主线程协程</b>里执行（`N.java:6068`），
+     * 所以从任意线程调用都安全；但我们仍在服务回调（主线程）里调，少一层不确定性。
+     *
+     * @return true = 已发起切换
+     */
+    static boolean switchKeyboard(int keyboardValue) {
+        final Object self = sN;
+        if (mK3 == null || self == null) return false;
+        try {
+            mK3.invoke(self, keyboardValue, null);
+            return true;
+        } catch (Throwable tr) {
+            Log.w(TAG, "switchKeyboard(" + keyboardValue + ") failed: " + tr);
+            return false;
         }
     }
 

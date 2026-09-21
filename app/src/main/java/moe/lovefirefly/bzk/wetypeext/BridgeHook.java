@@ -58,13 +58,24 @@ public class BridgeHook extends XposedModule {
     /** 目标 2 的落点：英文键盘下清空候选栏（用户要的：不要任何联想/补全，字直接上屏）。 */
     static final boolean DEV_FILTER_EN_CAND = true;
 
+    /** 目标 1 的翻译层：把框架 subtype 变化翻成微信内部中英切换。 */
+    static final boolean DEV_TRANSLATE_SUBTYPE = true;
+
+    /**
+     * 是否在每次 {@code onStartInput} 也按框架 subtype 对齐一次内部键盘。
+     *
+     * <p>开着 = "框架优先"（在微信里手切到英文，换个输入框会被拉回中文，与搜狗 OEM 的严格模式同义）；
+     * 关掉 = 只响应框架 subtype 真正变化的时刻。
+     */
+    static final boolean DEV_TRANSLATE_ON_START_INPUT = true;
+
     /**
      * 每次改探针就 +1：日志里能看到它，用来判断"这个进程加载的是不是最新那份模块"。
      *
      * <p>踩过的坑：重装 APK 后如果目标进程没重启，LSPosed 仍用它启动时加载的旧代码
      * （实测 :hld 一直跑着旧版，导致新加的闸门看起来"没生效"）。
      */
-    static final int PROBE_BUILD = 8;
+    static final int PROBE_BUILD = 9;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 

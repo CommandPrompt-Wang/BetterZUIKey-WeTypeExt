@@ -109,6 +109,16 @@ final class ServiceProbe {
                     final Object self = chain.getThisObject();
                     if (self != null) sService = self;
                     dump(name);
+                    // 目标 1 的翻译层：把框架 subtype 翻成微信内部中英切换。
+                    // - 带 subtype 参数的回调（onCurrentInputMethodSubtypeChanged）直接用参数；
+                    // - onStartInput 这类没有参数的，去服务上问当前 subtype
+                    //   （冷启动时框架不会主动告诉 IME，只能自己读）。
+                    if (st != null) {
+                        SubtypeTranslator.onSubtype(st, name);
+                    } else if (BridgeHook.DEV_TRANSLATE_ON_START_INPUT
+                            && name.startsWith("onStartInput")) {
+                        SubtypeTranslator.onSubtype(currentSubtype(), name);
+                    }
                 } catch (Throwable tr) {
                     Log.w(TAG, name + " hook body err: " + tr);
                 }
