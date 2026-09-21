@@ -34,6 +34,12 @@ final class ExtConfig {
     static final String KEY_SMART_NUMBER = "smartNumber";
     static final String KEY_FULLWIDTH_FEATURE = "fullwidthFeature";
     static final String KEY_EN_PUNCT = "enPunct";
+    /** TASK 1 括号/引号配对总开关（见 {@link PairGate}）。 */
+    static final String KEY_AUTO_PAIR = "autoPair";
+    /** TASK 1 补充：跳过已存在的闭合符号。 */
+    static final String KEY_CLOSE_SKIP = "closeSkip";
+    /** Shift 切换修复（见 {@link ShiftFix}）。 */
+    static final String KEY_SHIFT_FIX = "shiftSwitchFix";
     /** 可配置快捷键（格式见 {@link HotkeyConfig}；空 = 用默认值）。 */
     static final String KEY_HOTKEYS = "hotkeys";
 
@@ -52,6 +58,27 @@ final class ExtConfig {
     static final boolean DEF_FULLWIDTH_FEATURE = false;
     /** TASK 4 中英标点：开 = 用英文（ASCII）标点。默认关 = 中文标点。 */
     static final boolean DEF_EN_PUNCT = false;
+    /**
+     * TASK 1 括号/引号配对（微信原生行为）：开 = 自动补全 + 选中自动包裹；关 = 只上屏你打的那个字符。
+     *
+     * <p>默认开 —— 微信这套做得比我们当年在搜狗上写的还好，模块的职责只是给一个总闸
+     * （实现在 {@link PairGate}：关掉时在 IC 层把微信自动补上的那半截拆掉）。
+     */
+    static final boolean DEF_AUTO_PAIR = true;
+    /**
+     * TASK 1 补充：跳过已存在的闭合符号（搜狗 OEM Ext 同名功能）。
+     *
+     * <p>只对"微信刚刚自动补出来的那个闭合符"生效，不做任何推导：光标右边正好是它 ⇒ 只把光标
+     * 移过去，不再多插一个。默认开。
+     */
+    static final boolean DEF_CLOSE_SKIP = true;
+    /**
+     * Shift 切换修复：Shift 参与过组合（大写、符号、扩选）后松开，不再被误判成"Shift 单击切语言"。
+     *
+     * <p>微信原版只在 {@code hardware/d.p()}（"打字符"那条路）里置了
+     * {@code isShiftKeyEventConsumed}，方向键等路径会漏 ⇒ 松开 Shift 就切了语言。默认开。
+     */
+    static final boolean DEF_SHIFT_FIX = true;
 
     /** 英文键盘不显示候选/联想（两种都去：打字过程中的补全 + 上屏后的下一个词）。 */
     final boolean enNoSuggest;
@@ -93,13 +120,23 @@ final class ExtConfig {
     /** TASK 4 中英标点：true = 英文（ASCII）标点。 */
     final boolean enPunct;
 
+    /** TASK 1 括号/引号配对：true = 微信原生（自动补全 + 选中包裹）。 */
+    final boolean autoPair;
+
+    /** TASK 1 补充：打闭字符时若光标右已是它（且是刚补出来的），只移光标。 */
+    final boolean closeSkip;
+
+    /** Shift 组合键之后松开 Shift 不切语言。 */
+    final boolean shiftSwitchFix;
+
     /** 快捷键配置串（空 = 全默认）。 */
     final String hotkeys;
 
     ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart,
             boolean syncBackToFramework, boolean strictFrameworkOnly,
             boolean shiftPassThrough, boolean smartNumber,
-            boolean fullwidthFeature, boolean enPunct, String hotkeys) {
+            boolean fullwidthFeature, boolean enPunct, boolean autoPair,
+            boolean closeSkip, boolean shiftSwitchFix, String hotkeys) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
@@ -109,13 +146,17 @@ final class ExtConfig {
         this.smartNumber = smartNumber;
         this.fullwidthFeature = fullwidthFeature;
         this.enPunct = enPunct;
+        this.autoPair = autoPair;
+        this.closeSkip = closeSkip;
+        this.shiftSwitchFix = shiftSwitchFix;
         this.hotkeys = hotkeys == null ? "" : hotkeys;
     }
 
     static ExtConfig defaults() {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
                 DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER,
-                DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT, "");
+                DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT, DEF_AUTO_PAIR,
+                DEF_CLOSE_SKIP, DEF_SHIFT_FIX, "");
     }
 
     static ExtConfig load(SharedPreferences sp) {
@@ -131,6 +172,10 @@ final class ExtConfig {
                     sp.getBoolean(KEY_SMART_NUMBER, DEF_SMART_NUMBER),
                     sp.getBoolean(KEY_FULLWIDTH_FEATURE, DEF_FULLWIDTH_FEATURE),
                     sp.getBoolean(KEY_EN_PUNCT, DEF_EN_PUNCT),
+                    sp.contains(KEY_AUTO_PAIR) ? sp.getBoolean(KEY_AUTO_PAIR, DEF_AUTO_PAIR)
+                            : DEF_AUTO_PAIR,
+                    sp.getBoolean(KEY_CLOSE_SKIP, DEF_CLOSE_SKIP),
+                    sp.getBoolean(KEY_SHIFT_FIX, DEF_SHIFT_FIX),
                     sp.getString(KEY_HOTKEYS, ""));
         } catch (Throwable tr) {
             return defaults();
@@ -163,6 +208,9 @@ final class ExtConfig {
                     .putBoolean(KEY_SMART_NUMBER, c.smartNumber)
                     .putBoolean(KEY_FULLWIDTH_FEATURE, c.fullwidthFeature)
                     .putBoolean(KEY_EN_PUNCT, c.enPunct)
+                    .putBoolean(KEY_AUTO_PAIR, c.autoPair)
+                    .putBoolean(KEY_CLOSE_SKIP, c.closeSkip)
+                    .putBoolean(KEY_SHIFT_FIX, c.shiftSwitchFix)
                     .putString(KEY_HOTKEYS, c.hotkeys)
                     .apply();
         } catch (Throwable tr) {
@@ -180,6 +228,9 @@ final class ExtConfig {
                 + "-sn" + (smartNumber ? 1 : 0)
                 + "-fw" + (fullwidthFeature ? 1 : 0)
                 + "-ep" + (enPunct ? 1 : 0)
+                + "-ap" + (autoPair ? 1 : 0)
+                + "-cs" + (closeSkip ? 1 : 0)
+                + "-sf" + (shiftSwitchFix ? 1 : 0)
                 + "-hk" + hotkeys.hashCode();
     }
 
@@ -193,6 +244,8 @@ final class ExtConfig {
                 + " shiftPass=" + shiftPassThrough
                 + " smartNumber=" + smartNumber
                 + " fullwidthFeature=" + fullwidthFeature + " enPunct=" + enPunct
+                + " autoPair=" + autoPair + " closeSkip=" + closeSkip
+                + " shiftFix=" + shiftSwitchFix
                 + " hotkeys=" + hotkeys;
     }
 

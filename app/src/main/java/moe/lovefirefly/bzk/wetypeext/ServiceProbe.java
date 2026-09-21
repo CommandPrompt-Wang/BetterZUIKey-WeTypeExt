@@ -160,6 +160,8 @@ final class ServiceProbe {
         CommitHook.install(sModule, cl);
         // TASK 5：Shift 放行（修原生 Shift+方向键扩选）
         ShiftPassthrough.install(sModule, cl);
+        // Shift 切换修复：反射拿微信 hardware/d.isShiftKeyEventConsumed 那个标记
+        ShiftFix.install(cl);
         // 严格模式：拒绝微信自己切语言（挂在总漏斗 N.m3 上，不碰按键）
         SubtypeGuard.install(sModule, WeTypeInternals.nClass());
         // 引擎侧那一刀：建会话时按语言改 SessionConfig（不依赖混淆类）
@@ -170,6 +172,10 @@ final class ServiceProbe {
         EnCandidateFilter.install(sModule, cl);
         // TASK 5 诊断探针（只打日志）
         SelectProbe.install(sModule, cl);
+        // TASK 1 诊断探针：IC 调用全量打点（只打日志）
+        IcTrace.install(sModule, cl);
+        // TASK 1 括号配对总开关（关掉时在 IC 层拆掉自动补的那半截）
+        PairGate.install(sModule, cl);
         // 配置通道：在目标进程里注册广播接收器（改设置即时生效，不用重启微信）
         BroadcastConfig.start(WeTypeInternals.appContext());
     }

@@ -58,6 +58,16 @@ final class Hotkeys {
             m.setAccessible(true);
             module.hook(m).intercept(chain -> {
                 InputSource.markPhysical();          // 任何物理键都记一笔
+                try {
+                    // Shift 切换修复：按键盘这一层记"Shift 参与过组合"
+                    final Object kcA = chain.getArg(0);
+                    final Object evA = chain.getArg(1);
+                    if (kcA instanceof Integer && evA instanceof KeyEvent) {
+                        ShiftFix.noteKey((Integer) kcA, (KeyEvent) evA, down);
+                    }
+                } catch (Throwable tr) {
+                    Log.w(TAG, "Hotkeys: shiftFix note err: " + tr);
+                }
                 if (route(chain, down)) return Boolean.TRUE;
                 return chain.proceed();
             });

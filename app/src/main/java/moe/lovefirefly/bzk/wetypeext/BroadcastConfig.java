@@ -35,6 +35,9 @@ final class BroadcastConfig {
     /** 反向通道：模块 → App 回传当前状态位。 */
     static final String EXTRA_ST_FULLWIDTH = "stateFullwidth";
     static final String EXTRA_EN_PUNCT = ExtConfig.KEY_EN_PUNCT;
+    static final String EXTRA_AUTO_PAIR = ExtConfig.KEY_AUTO_PAIR;
+    static final String EXTRA_CLOSE_SKIP = ExtConfig.KEY_CLOSE_SKIP;
+    static final String EXTRA_SHIFT_FIX = ExtConfig.KEY_SHIFT_FIX;
     static final String EXTRA_HOTKEYS = ExtConfig.KEY_HOTKEYS;
 
     /** 回传状态用的 action（模块 → App，显式指定包名投递）。 */
@@ -79,6 +82,9 @@ final class BroadcastConfig {
                             intent.getBooleanExtra(EXTRA_FULLWIDTH,
                                     ExtConfig.DEF_FULLWIDTH_FEATURE),
                             intent.getBooleanExtra(EXTRA_EN_PUNCT, ExtConfig.DEF_EN_PUNCT),
+                            intent.getBooleanExtra(EXTRA_AUTO_PAIR, ExtConfig.DEF_AUTO_PAIR),
+                            intent.getBooleanExtra(EXTRA_CLOSE_SKIP, ExtConfig.DEF_CLOSE_SKIP),
+                            intent.getBooleanExtra(EXTRA_SHIFT_FIX, ExtConfig.DEF_SHIFT_FIX),
                             intent.getStringExtra(EXTRA_HOTKEYS) == null ? ""
                                     : intent.getStringExtra(EXTRA_HOTKEYS));
                     ExtConfig.set(cfg);

@@ -54,7 +54,10 @@ final class ShiftPassthrough {
             final Method k = d.getDeclaredMethod("k", boolean.class);
             k.setAccessible(true);
             module.hook(k).intercept(chain -> {
-                // 先跑微信自己的逻辑（Shift 单击切语言、硬件模式判定都在里面）
+                // Shift 切换修复：抬起这一次如果"Shift 参与过组合"，先替微信把标记补齐，
+                // 否则它自己会在 k() 里判定成"Shift 单击"把语言切走（见 ShiftFix）。
+                if (Boolean.TRUE.equals(chain.getArg(0))) ShiftFix.beforeShiftKeyUp();
+                // 再跑微信自己的逻辑（Shift 单击切语言、硬件模式判定都在里面）
                 final Object original = chain.proceed();
                 if (!ExtConfig.get().shiftPassThrough) return original;
                 final long now = System.currentTimeMillis();

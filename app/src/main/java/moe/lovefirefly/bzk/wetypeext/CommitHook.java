@@ -69,23 +69,38 @@ final class CommitHook {
                 if (!(a0 instanceof CharSequence)) return chain.proceed();
 
                 String out = null;
+                boolean handled = false;
                 try {
                     final String raw = a0.toString();
                     if ("commitText".equals(name)) {
-                        out = TextNorm.normalizeCommit(raw, chain.getThisObject(), sLastShown);
-                        if (out != null) {
-                            final long now = System.currentTimeMillis();
-                            if (now - sLastLog > 200) {
-                                sLastLog = now;
-                                Log.i(TAG, "norm: \"" + raw + "\" -> \"" + out + "\"");
+                        String text = raw;
+                        final String norm = TextNorm.normalizeCommit(raw, chain.getThisObject(),
+                                sLastShown);
+                        if (norm != null) text = norm;
+
+                        // TASK 1：closeSkip（跳过已存在的闭合符）——命中则这次提交整个不走
+                        handled = PairGate.beforeCommit(text, chain.getThisObject());
+
+                        // TASK 1：配对总开关关着时，把微信自动补上的那半截拆掉
+                        if (!handled) {
+                            final String stripped = PairGate.stripAutoClose(text);
+                            if (stripped != null) text = stripped;
+                            if (!text.equals(raw)) out = text;
+                            if (out != null) {
+                                final long now = System.currentTimeMillis();
+                                if (now - sLastLog > 200) {
+                                    sLastLog = now;
+                                    Log.i(TAG, "norm: \"" + raw + "\" -> \"" + out + "\"");
+                                }
                             }
+                            remember(text);
                         }
-                        remember(out != null ? out : raw);
                     }
                 } catch (Throwable tr) {
                     Log.w(TAG, "CommitHook body err: " + tr);
                 }
 
+                if (handled) return Boolean.TRUE;   // closeSkip：闭字符已在光标右，不上屏
                 if (out == null) return chain.proceed();
                 final Object[] args = chain.getArgs().toArray();
                 args[0] = out;

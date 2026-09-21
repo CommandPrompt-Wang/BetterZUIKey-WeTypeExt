@@ -94,6 +94,27 @@ public class MainActivity extends Activity {
                         + "开关关掉 = 完全恢复正常（Shift+Space 也不吞，空格照常）。",
                 ExtConfig.KEY_FULLWIDTH_FEATURE, cfg.fullwidthFeature);
 
+        addSwitch(root, "括号/引号自动配对",
+                "微信原生行为（做得不错，建议保持打开）：打 （ 自动补出 （） 并把光标放中间；"
+                        + "选中文字后打 （ 会自动用括号包起来。\n"
+                        + "关掉 = 只上屏你打的那一个字符（选中时用该字符替换选区），"
+                        + "在提交层把微信自动补上的那半截拆掉，中文英文、开关即时生效。",
+                ExtConfig.KEY_AUTO_PAIR, cfg.autoPair);
+
+        addSwitch(root, "跳过已存在的闭合符号",
+                "打 ）、】、” 这类闭字符时，如果光标右边已经就是它（微信刚刚自动补出来的那个），"
+                        + "只把光标移过去、不再多插一个。\n"
+                        + "只认「微信刚补出来的那一个」，不做任何推导 —— 所以不会误伤你自己敲的括号。",
+                ExtConfig.KEY_CLOSE_SKIP, cfg.closeSkip);
+
+        addSwitch(root, "Shift 切换修复",
+                "物理键盘上 Shift 参与过组合（Shift+字母打大写、Shift+符号、Shift+方向键扩选）之后，"
+                        + "松开 Shift 不再被误判成「Shift 单击切语言」。\n"
+                        + "微信原版只在「打字符」那条路上打了标记，方向键等路径会漏，于是松开 Shift 就切了语言；"
+                        + "本开关在按键盘这一层把标记补齐。\n"
+                        + "想彻底只认系统语言，再开上面的「严格模式」。",
+                ExtConfig.KEY_SHIFT_FIX, cfg.shiftSwitchFix);
+
         addHotkeySection(root);
 
         addHint(root, "\n切换后立即生效，无需重启微信。\n"

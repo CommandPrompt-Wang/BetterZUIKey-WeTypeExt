@@ -51,8 +51,11 @@ public class BridgeHook extends XposedModule {
     /** TASK 5 诊断：物理键分发 + 选区变化（只打日志，不改行为）。 */
     static final boolean DEV_SELECT_PROBE = true;
 
+    /** TASK 1 诊断：把 IME 侧每一次 InputConnection 调用原样打出来（只打日志，不改行为）。 */
+    static final boolean DEV_IC_TRACE = true;
 
-    static final int PROBE_BUILD = 23;
+
+    static final int PROBE_BUILD = 28;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 
