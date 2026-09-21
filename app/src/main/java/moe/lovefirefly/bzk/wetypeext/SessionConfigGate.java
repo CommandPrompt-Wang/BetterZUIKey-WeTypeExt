@@ -46,7 +46,7 @@ final class SessionConfigGate {
     private SessionConfigGate() {}
 
     static void install(XposedModule module, ClassLoader cl) {
-        if (sInstalled || !BridgeHook.DEV_GATE_EN_ASSOC) return;
+        if (sInstalled) return;
         sInstalled = true;
         try {
             final Class<?> api = Class.forName(CLS_WXHLD_API, false, cl);
@@ -80,6 +80,7 @@ final class SessionConfigGate {
         final boolean textRecommend = getBool(cfg, "enable_text_recommend");
         final boolean hotWord = getBool(cfg, "enable_user_hot_word_recommend");
 
+        if (!ExtConfig.get().enNoSuggest) return;
         // 只在英文会话、且确实开着的时候改，顺便限流打日志
         if (kbType == KB_TYPE_FULL_ENGLISH && mostLikely) {
             setBool(cfg, "enable_auto_most_likely", false);

@@ -45,37 +45,10 @@ public class BridgeHook extends XposedModule {
      */
     static final boolean DEV_INTERNALS = true;
 
-    /**
-     * 是否启用目标 2 的行为：<b>英文键盘不放行联想候选</b>（中文键盘不动）。
-     *
-     * <p>放在这里当开关是为了 A/B：关掉即恢复微信原生行为，便于对比"是不是真的只砍了英文联想"。
-     */
-    static final boolean DEV_GATE_EN_ASSOC = true;
-
-    /** 候选探针：英文键盘时把候选的 flag/kind 打出来（诊断用，已收工）。 */
+    /** 候选探针：英文键盘时把候选的 flag/kind 打出来（诊断用，已收工，默认关）。 */
     static final boolean DEV_CAND_PROBE = false;
 
-    /** 目标 2 的落点：英文键盘下清空候选栏（用户要的：不要任何联想/补全，字直接上屏）。 */
-    static final boolean DEV_FILTER_EN_CAND = true;
-
-    /** 目标 1 的翻译层：把框架 subtype 变化翻成微信内部中英切换。 */
-    static final boolean DEV_TRANSLATE_SUBTYPE = true;
-
-    /**
-     * 是否在每次 {@code onStartInput} 也按框架 subtype 对齐一次内部键盘。
-     *
-     * <p>开着 = "框架优先"（在微信里手切到英文，换个输入框会被拉回中文，与搜狗 OEM 的严格模式同义）；
-     * 关掉 = 只响应框架 subtype 真正变化的时刻。
-     */
-    static final boolean DEV_TRANSLATE_ON_START_INPUT = true;
-
-    /**
-     * 每次改探针就 +1：日志里能看到它，用来判断"这个进程加载的是不是最新那份模块"。
-     *
-     * <p>踩过的坑：重装 APK 后如果目标进程没重启，LSPosed 仍用它启动时加载的旧代码
-     * （实测 :hld 一直跑着旧版，导致新加的闸门看起来"没生效"）。
-     */
-    static final int PROBE_BUILD = 9;
+    static final int PROBE_BUILD = 11;
 
     private static final Set<String> sHandled = ConcurrentHashMap.newKeySet();
 
@@ -113,6 +86,13 @@ public class BridgeHook extends XposedModule {
                         || "?".equals(process);
                 if (DEV_PROBE && isImeProcess) {
                     ServiceProbe.install(this, cl);
+                    // 配置接收器要尽早注册：广播只在进程活着时有人接，而行为钩子要等第一次
+                    // 服务回调才装。Application context 得等微信 Application 起来
+                    // （那份"不许提前触发微信类初始化"的纪律），所以这里有限度地等一会儿。
+                    for (int i = 0; i < 150 && WeTypeInternals.appContext() == null; i++) {
+                        Thread.sleep(200L);
+                    }
+                    BroadcastConfig.start(WeTypeInternals.appContext());
                 } else {
                     Log.i(TAG, "skip service probe (process=" + process + ")");
                 }

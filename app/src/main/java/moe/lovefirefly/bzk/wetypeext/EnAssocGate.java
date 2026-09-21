@@ -52,7 +52,7 @@ final class EnAssocGate {
                 final boolean english = n0 != null
                         && n0.intValue() == WeTypeInternals.KB_ENGLISH_QWERTY;
                 note(english, n0, u0);
-                if (BridgeHook.DEV_GATE_EN_ASSOC && english) {
+                if (ExtConfig.get().enNoSuggest && english) {
                     return Boolean.FALSE;
                 }
                 return chain.proceed();
@@ -92,8 +92,9 @@ final class EnAssocGate {
         final int key = (english ? 1 : 0) * 100000 + (n0 == null ? -1 : n0);
         if (sLastDecision == key) return;
         sLastDecision = key;
+        final boolean on = ExtConfig.get().enNoSuggest;
         Log.i(TAG, "EnAssocGate: k2 called n0=" + n0 + " u0=" + u0
-                + " english=" + english + " gate=" + BridgeHook.DEV_GATE_EN_ASSOC
-                + " -> " + (BridgeHook.DEV_GATE_EN_ASSOC && english ? "BLOCK" : "pass"));
+                + " english=" + english + " gate=" + on
+                + " -> " + (on && english ? "BLOCK" : "pass"));
     }
 }

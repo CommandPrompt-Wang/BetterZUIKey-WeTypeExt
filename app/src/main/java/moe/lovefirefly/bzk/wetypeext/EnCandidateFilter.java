@@ -48,7 +48,7 @@ final class EnCandidateFilter {
     private EnCandidateFilter() {}
 
     static void install(XposedModule module, ClassLoader cl) {
-        if (sInstalled || !BridgeHook.DEV_FILTER_EN_CAND) return;
+        if (sInstalled) return;
         sInstalled = true;
         try {
             final Class<?> view = Class.forName(CLS_VIEW, false, cl);
@@ -71,6 +71,7 @@ final class EnCandidateFilter {
 
     /** 英文键盘 → 清空这批发往候选栏的候选；其它键盘原样放行。 */
     private static void apply(Object listArg) {
+        if (!ExtConfig.get().enNoSuggest) return;
         final Integer kb = WeTypeInternals.keyboardValue();
         if (kb == null || kb.intValue() != WeTypeInternals.KB_ENGLISH_QWERTY) return;
         if (!(listArg instanceof List)) return;

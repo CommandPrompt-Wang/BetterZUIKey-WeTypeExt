@@ -52,6 +52,17 @@ final class WeTypeInternals {
         return sNClass;
     }
 
+    /** 目标进程的 Application Context（注册接收器 / 落盘都要用它，别用 system context）。 */
+    static android.content.Context appContext() {
+        try {
+            final Object app = Class.forName("android.app.ActivityThread")
+                    .getMethod("currentApplication").invoke(null);
+            return app instanceof android.content.Context ? (android.content.Context) app : null;
+        } catch (Throwable tr) {
+            return null;
+        }
+    }
+
     /**
      * Application 是否已经创建。微信在 {@code HldApplicationLike.onBaseContextAttached} 里
      * init MMKV，所以这个为真才说明可以安全触碰它的类。

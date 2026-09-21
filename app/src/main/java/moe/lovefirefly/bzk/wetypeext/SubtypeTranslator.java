@@ -28,7 +28,7 @@ import android.view.inputmethod.InputMethodSubtype;
  * （实测：内部已 100，框架仍是 zh-CN），所以不会形成"切了又被切回来"的循环。
  * 但反过来说，用户在微信里手动切到英文后，下一次 {@code onStartInput} 会被框架 subtype
  * 拉回中文 —— 这是"框架优先"的必然结果，也是搜狗 OEM 那边「严格模式」的同一套语义。
- * 如果只想响应"框架真的变了"，把 {@link BridgeHook#DEV_TRANSLATE_ON_START_INPUT} 关掉。
+ * 如果只想响应"框架真的变了"，把设置页的「严格跟随系统语言」关掉。
  */
 final class SubtypeTranslator {
 
@@ -38,7 +38,7 @@ final class SubtypeTranslator {
 
     /** subtype 变化（框架回调）时调用。 */
     static void onSubtype(InputMethodSubtype st, String why) {
-        if (!BridgeHook.DEV_TRANSLATE_SUBTYPE) return;
+        if (!ExtConfig.get().subtypeTranslate) return;
         try {
             sync(st, why);
         } catch (Throwable tr) {

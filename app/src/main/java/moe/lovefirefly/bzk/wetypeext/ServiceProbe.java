@@ -115,7 +115,7 @@ final class ServiceProbe {
                     //   （冷启动时框架不会主动告诉 IME，只能自己读）。
                     if (st != null) {
                         SubtypeTranslator.onSubtype(st, name);
-                    } else if (BridgeHook.DEV_TRANSLATE_ON_START_INPUT
+                    } else if (ExtConfig.get().subtypeStrictOnStart
                             && name.startsWith("onStartInput")) {
                         SubtypeTranslator.onSubtype(currentSubtype(), name);
                     }
@@ -153,6 +153,8 @@ final class ServiceProbe {
         CandidateProbe.install(sModule, cl);
         // 目标 2 的落点：英文键盘清空候选栏
         EnCandidateFilter.install(sModule, cl);
+        // 配置通道：在目标进程里注册广播接收器（改设置即时生效，不用重启微信）
+        BroadcastConfig.start(WeTypeInternals.appContext());
     }
 
     /** 一次性把「框架看到的 subtype」与「微信内部键盘状态」打在一行，方便对照。 */
