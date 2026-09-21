@@ -1,12 +1,5 @@
 package moe.lovefirefly.bzk.wetypeext;
 
-import android.util.Log;
-import android.view.KeyEvent;
-
-import java.lang.reflect.Method;
-
-import io.github.libxposed.api.XposedModule;
-
 /**
  * 判断"这次提交是物理键盘敲的，还是软键盘点的"。
  *
@@ -22,6 +15,8 @@ import io.github.libxposed.api.XposedModule;
  *   <li>挂 {@code hardware/d.n}，每次物理键按下记一个时间戳；</li>
  *   <li>{@link #isPhysical()} 判断"刚刚（{@value #WINDOW_MS} ms 内）有物理键"。</li>
  * </ul>
+ *
+ * <p>标记由 {@link Hotkeys} 在物理键入口打（同一个钩子，避免对同一方法挂两个钩子）。
  *
  * <p>为什么用时间窗而不是 ThreadLocal：物理键的提交可能经 `key/d` 的命令队列/协程走一跳，
  * 跨线程会丢标记。窗口按真机手感取 {@value #WINDOW_MS} ms —— 足够覆盖那一跳，
@@ -39,22 +34,9 @@ final class InputSource {
 
     private InputSource() {}
 
-    static void install(XposedModule module, ClassLoader cl) {
-        if (sInstalled) return;
-        sInstalled = true;
-        try {
-            final Class<?> d = Class.forName(
-                    "com.tencent.wetype.plugin.hld.hardware.d", false, cl);
-            final Method n = d.getDeclaredMethod("n", int.class, KeyEvent.class);
-            n.setAccessible(true);
-            module.hook(n).intercept(chain -> {
-                sPhysKeyAt = System.currentTimeMillis();
-                return chain.proceed();
-            });
-            Log.i(TAG, "InputSource: hooked hardware.d.n (物理键标记)");
-        } catch (Throwable tr) {
-            Log.w(TAG, "InputSource: install failed: " + tr);
-        }
+    /** 物理键按下时调（由 {@link Hotkeys} 在同一个钩子里打点）。 */
+    static void markPhysical() {
+        sPhysKeyAt = System.currentTimeMillis();
     }
 
     /** 这次提交是不是（刚刚的）物理键盘输入。 */

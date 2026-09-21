@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.util.TypedValue;
 import android.view.ViewGroup;
 import android.widget.CompoundButton;
@@ -20,6 +21,11 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
 
     private SharedPreferences prefs;
+
+    /** 快捷键区：每个动作一行，点一下进入"按下组合键"录制。 */
+    private final java.util.Map<HotkeyAction, TextView> hotkeyRows =
+            new java.util.EnumMap<>(HotkeyAction.class);
+    private HotkeyAction recording;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,10 +88,13 @@ public class MainActivity extends Activity {
                         + "关（默认）：中文标点保持全角。软键盘上点的 ，/。 不受影响。",
                 ExtConfig.KEY_EN_PUNCT, cfg.enPunct);
 
-        addSwitch(root, "全角模式",
-                "开：物理键盘打出的 ASCII 符号转全角（只动符号，不动字母数字，免得拼音被全角化）。"
-                        + "关（默认）：什么都不做 —— 微信自己的符号本来就是半角。",
-                ExtConfig.KEY_FULLWIDTH, cfg.fullWidth);
+        addSwitch(root, "启用全角模式（Shift+Space 切换）",
+                "这是**功能开关**：打开后物理键盘按 Shift+Space 切换全角/半角状态位，"
+                        + "状态为「全角」时把 ASCII 符号转全角（只动符号，不动字母数字，免得拼音被全角化）。\n"
+                        + "开关关掉 = 完全恢复正常（Shift+Space 也不吞，空格照常）。",
+                ExtConfig.KEY_FULLWIDTH_FEATURE, cfg.fullwidthFeature);
+
+        addHotkeySection(root);
 
         addHint(root, "\n切换后立即生效，无需重启微信。\n"
                 + "日志标签：BZK-WeTypeExt");
@@ -96,6 +105,80 @@ public class MainActivity extends Activity {
 
         // 进页面补发一次：微信进程当时没跑的话，这条会在它下次起来前一直缺失
         ConfigSender.send(this, prefs);
+    }
+
+    /** 「快捷键」区：注册表里每个动作一行，点行进入录制（按 Back 取消）。 */
+    private void addHotkeySection(LinearLayout root) {
+        addTitle(root, "\n快捷键");
+        addHint(root, "点一行，然后按下你想用的组合键（至少要有一个修饰键）；"
+                + "退格 = 清除这一项，Esc / 返回 = 取消。新功能加的快捷键会自动出现在这里。");
+        for (HotkeyAction a : HotkeyAction.values()) {
+            final TextView row = new TextView(this);
+            row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+            row.setPadding(0, dp(12), 0, dp(2));
+            row.setOnClickListener(v -> {
+                recording = a;
+                refreshHotkeyRows();
+            });
+            hotkeyRows.put(a, row);
+            root.addView(row);
+        }
+        refreshHotkeyRows();
+    }
+
+    private void refreshHotkeyRows() {
+        final String raw = prefs.getString(ExtConfig.KEY_HOTKEYS, "");
+        final java.util.Map<String, int[]> map = HotkeyConfig.parse(raw, null);
+        for (java.util.Map.Entry<HotkeyAction, TextView> e : hotkeyRows.entrySet()) {
+            final HotkeyAction a = e.getKey();
+            final int[] c = HotkeyConfig.comboOf(map, a);
+            final String combo = HotkeyConfig.describe(c[0], c[1] != 0, c[2] != 0);
+            e.getValue().setText(recording == a
+                    ? a.label + "：请按下组合键…（退格清除 / Esc 取消）"
+                    : a.label + "：" + combo);
+        }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (recording != null) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                final int kc = event.getKeyCode();
+                // 返回 / Esc = 取消录制
+                if (kc == KeyEvent.KEYCODE_BACK || kc == KeyEvent.KEYCODE_ESCAPE) {
+                    recording = null;
+                    refreshHotkeyRows();
+                    return true;
+                }
+                // 退格 = 清除当前动作的绑定（设为"未设置"）
+                if (kc == KeyEvent.KEYCODE_DEL) {
+                    final String cleared = HotkeyConfig.withCombo(
+                            prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, 0, false, false);
+                    prefs.edit().putString(ExtConfig.KEY_HOTKEYS, cleared).apply();
+                    recording = null;
+                    refreshHotkeyRows();
+                    ConfigSender.send(this, prefs);
+                    return true;
+                }
+                if (!HotkeyConfig.isModifierKey(kc)) {
+                    final int meta = event.getMetaState();
+                    final boolean shift = (meta & KeyEvent.META_SHIFT_ON) != 0;
+                    final boolean ctrl = (meta & KeyEvent.META_CTRL_ON) != 0;
+                    if (!shift && !ctrl) {
+                        // 没有修饰键的组合太容易误触，不受理
+                        return true;
+                    }
+                    final String next = HotkeyConfig.withCombo(
+                            prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, kc, shift, ctrl);
+                    prefs.edit().putString(ExtConfig.KEY_HOTKEYS, next).apply();
+                    recording = null;
+                    refreshHotkeyRows();
+                    ConfigSender.send(this, prefs);
+                }
+            }
+            return true;   // 录制期间把按键都吃掉
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     private void addSwitch(LinearLayout root, String title, String desc,

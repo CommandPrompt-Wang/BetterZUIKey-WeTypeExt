@@ -32,8 +32,10 @@ final class ExtConfig {
     static final String KEY_STRICT = "strictFrameworkOnly";
     static final String KEY_SHIFT_PASSTHRU = "shiftPassThrough";
     static final String KEY_SMART_NUMBER = "smartNumber";
-    static final String KEY_FULLWIDTH = "fullWidth";
+    static final String KEY_FULLWIDTH_FEATURE = "fullwidthFeature";
     static final String KEY_EN_PUNCT = "enPunct";
+    /** 可配置快捷键（格式见 {@link HotkeyConfig}；空 = 用默认值）。 */
+    static final String KEY_HOTKEYS = "hotkeys";
 
     // 默认值（界面、发送方、模块侧三处必须一致，否则会出现"界面显示开、实际是关"）
     static final boolean DEF_EN_NO_SUGGEST = true;
@@ -46,8 +48,8 @@ final class ExtConfig {
     static final boolean DEF_SHIFT_PASSTHRU = true;
     /** TASK 2 智能编号：数字后的 。/） 用半角。默认开。 */
     static final boolean DEF_SMART_NUMBER = true;
-    /** TASK 3 全角模式（状态位）。默认关 = 把全角 ASCII 区拉回半角（中文标点除外）。 */
-    static final boolean DEF_FULLWIDTH = false;
+    /** TASK 3 全角模式的**功能开关**（状态位另见 {@link PunctState}，由 Shift+Space 切换）。默认关。 */
+    static final boolean DEF_FULLWIDTH_FEATURE = false;
     /** TASK 4 中英标点：开 = 用英文（ASCII）标点。默认关 = 中文标点。 */
     static final boolean DEF_EN_PUNCT = false;
 
@@ -85,16 +87,19 @@ final class ExtConfig {
     /** TASK 2 智能编号：{@code 1。}→{@code 1.}、{@code 1）}→{@code 1)}。 */
     final boolean smartNumber;
 
-    /** TASK 3 全角模式。 */
-    final boolean fullWidth;
+    /** TASK 3 全角模式**功能开关**。转换条件是 {@code fullwidthFeature && PunctState.fullwidth()}。 */
+    final boolean fullwidthFeature;
 
     /** TASK 4 中英标点：true = 英文（ASCII）标点。 */
     final boolean enPunct;
 
+    /** 快捷键配置串（空 = 全默认）。 */
+    final String hotkeys;
+
     ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart,
             boolean syncBackToFramework, boolean strictFrameworkOnly,
             boolean shiftPassThrough, boolean smartNumber,
-            boolean fullWidth, boolean enPunct) {
+            boolean fullwidthFeature, boolean enPunct, String hotkeys) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
@@ -102,14 +107,15 @@ final class ExtConfig {
         this.strictFrameworkOnly = strictFrameworkOnly;
         this.shiftPassThrough = shiftPassThrough;
         this.smartNumber = smartNumber;
-        this.fullWidth = fullWidth;
+        this.fullwidthFeature = fullwidthFeature;
         this.enPunct = enPunct;
+        this.hotkeys = hotkeys == null ? "" : hotkeys;
     }
 
     static ExtConfig defaults() {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
                 DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER,
-                DEF_FULLWIDTH, DEF_EN_PUNCT);
+                DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT, "");
     }
 
     static ExtConfig load(SharedPreferences sp) {
@@ -123,8 +129,9 @@ final class ExtConfig {
                     sp.getBoolean(KEY_STRICT, DEF_STRICT),
                     sp.getBoolean(KEY_SHIFT_PASSTHRU, DEF_SHIFT_PASSTHRU),
                     sp.getBoolean(KEY_SMART_NUMBER, DEF_SMART_NUMBER),
-                    sp.getBoolean(KEY_FULLWIDTH, DEF_FULLWIDTH),
-                    sp.getBoolean(KEY_EN_PUNCT, DEF_EN_PUNCT));
+                    sp.getBoolean(KEY_FULLWIDTH_FEATURE, DEF_FULLWIDTH_FEATURE),
+                    sp.getBoolean(KEY_EN_PUNCT, DEF_EN_PUNCT),
+                    sp.getString(KEY_HOTKEYS, ""));
         } catch (Throwable tr) {
             return defaults();
         }
@@ -154,8 +161,9 @@ final class ExtConfig {
                     .putBoolean(KEY_STRICT, c.strictFrameworkOnly)
                     .putBoolean(KEY_SHIFT_PASSTHRU, c.shiftPassThrough)
                     .putBoolean(KEY_SMART_NUMBER, c.smartNumber)
-                    .putBoolean(KEY_FULLWIDTH, c.fullWidth)
+                    .putBoolean(KEY_FULLWIDTH_FEATURE, c.fullwidthFeature)
                     .putBoolean(KEY_EN_PUNCT, c.enPunct)
+                    .putString(KEY_HOTKEYS, c.hotkeys)
                     .apply();
         } catch (Throwable tr) {
             // 落盘失败只影响"重启后不回默认"，不影响本次生效
@@ -170,8 +178,9 @@ final class ExtConfig {
                 + "-sk" + (strictFrameworkOnly ? 1 : 0)
                 + "-sp" + (shiftPassThrough ? 1 : 0)
                 + "-sn" + (smartNumber ? 1 : 0)
-                + "-fw" + (fullWidth ? 1 : 0)
-                + "-ep" + (enPunct ? 1 : 0);
+                + "-fw" + (fullwidthFeature ? 1 : 0)
+                + "-ep" + (enPunct ? 1 : 0)
+                + "-hk" + hotkeys.hashCode();
     }
 
     @Override
@@ -183,7 +192,8 @@ final class ExtConfig {
                 + " strict=" + strictFrameworkOnly
                 + " shiftPass=" + shiftPassThrough
                 + " smartNumber=" + smartNumber
-                + " fullWidth=" + fullWidth + " enPunct=" + enPunct;
+                + " fullwidthFeature=" + fullwidthFeature + " enPunct=" + enPunct
+                + " hotkeys=" + hotkeys;
     }
 
     // ------------------------------------------------------------------ 模块侧当前值

@@ -62,8 +62,8 @@ final class TextNorm {
             if (n2 != null) s = n2;
         }
 
-        // ③ 全角模式：**关 = 什么都不做**（微信自己的符号本来就是半角，除了中文标点）
-        if (ExtConfig.get().fullWidth) {
+        // ③ 全角模式：**功能开 && 状态位为真**才做（用户口径；状态位由 Shift+Space 切）
+        if (ExtConfig.get().fullwidthFeature && PunctState.fullwidth()) {
             final String n3 = toFullWidth(s);
             if (n3 != null) s = n3;
         }

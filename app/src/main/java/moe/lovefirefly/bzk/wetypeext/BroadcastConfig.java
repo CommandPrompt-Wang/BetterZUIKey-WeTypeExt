@@ -31,8 +31,11 @@ final class BroadcastConfig {
     static final String EXTRA_STRICT = ExtConfig.KEY_STRICT;
     static final String EXTRA_SHIFT_PASSTHRU = ExtConfig.KEY_SHIFT_PASSTHRU;
     static final String EXTRA_SMART_NUMBER = ExtConfig.KEY_SMART_NUMBER;
-    static final String EXTRA_FULLWIDTH = ExtConfig.KEY_FULLWIDTH;
+    static final String EXTRA_FULLWIDTH = ExtConfig.KEY_FULLWIDTH_FEATURE;
+    /** 反向通道：模块 → App 回传当前状态位。 */
+    static final String EXTRA_ST_FULLWIDTH = "stateFullwidth";
     static final String EXTRA_EN_PUNCT = ExtConfig.KEY_EN_PUNCT;
+    static final String EXTRA_HOTKEYS = ExtConfig.KEY_HOTKEYS;
 
     /** 回传状态用的 action（模块 → App，显式指定包名投递）。 */
     static final String ACTION_STATE = "moe.lovefirefly.bzk.wetypeext.STATE";
@@ -73,8 +76,11 @@ final class BroadcastConfig {
                                     ExtConfig.DEF_SHIFT_PASSTHRU),
                             intent.getBooleanExtra(EXTRA_SMART_NUMBER,
                                     ExtConfig.DEF_SMART_NUMBER),
-                            intent.getBooleanExtra(EXTRA_FULLWIDTH, ExtConfig.DEF_FULLWIDTH),
-                            intent.getBooleanExtra(EXTRA_EN_PUNCT, ExtConfig.DEF_EN_PUNCT));
+                            intent.getBooleanExtra(EXTRA_FULLWIDTH,
+                                    ExtConfig.DEF_FULLWIDTH_FEATURE),
+                            intent.getBooleanExtra(EXTRA_EN_PUNCT, ExtConfig.DEF_EN_PUNCT),
+                            intent.getStringExtra(EXTRA_HOTKEYS) == null ? ""
+                                    : intent.getStringExtra(EXTRA_HOTKEYS));
                     ExtConfig.set(cfg);
                     ExtConfig.persist(c == null ? ctx : c, cfg);
                     Log.i(TAG, "config broadcast -> " + cfg);
