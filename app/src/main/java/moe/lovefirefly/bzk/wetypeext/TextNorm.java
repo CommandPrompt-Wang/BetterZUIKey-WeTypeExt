@@ -8,8 +8,8 @@ import android.view.inputmethod.InputConnection;
  * <p>挂点在 {@link CommitHook}（框架 IC 的 {@code commitText}）。处理顺序与隔壁 gb 组件一致：
  * <pre>
  *   ① 智能编号（仅物理键盘）      1。 → 1.、1） → 1)
- *   ② 中英标点（开关）            切到"英文标点"时：，。！？… → ,.!?…
- *   ③ 全角模式（状态位）          开 = ASCII 符号转全角；
+ *   ② 中英标点（功能门 && 状态位）  切到"英文标点"时：，。！？… → ,.!?…
+ *   ③ 全角模式（功能门 && 状态位）  开 = ASCII 符号转全角；
  *                                 关（默认）= **什么都不做**（微信自己的符号本来就是半角）
  * </pre>
  *
@@ -56,8 +56,8 @@ final class TextNorm {
         final String n1 = smartNumber(s, ic, lastShown);
         if (n1 != null) s = n1;
 
-        // ② 中英标点：切到"英文标点"时，中文标点落成 ASCII
-        if (ExtConfig.get().enPunct) {
+        // ② 中英标点（状态位，Ctrl+. 切）：切到"英文标点"时，中文标点落成 ASCII
+        if (ExtConfig.get().enPunctFeature && PunctState.enPunct()) {
             final String n2 = toAsciiPunct(s);
             if (n2 != null) s = n2;
         }
@@ -114,8 +114,14 @@ final class TextNorm {
     /**
      * TASK 3 · 全角化（全角模式开）：ASCII <b>符号区</b> → {@code FF01–FF5E}。
      *
-     * <p>只动符号（{@code 0x21–0x2F}、{@code 0x3A–0x40}、{@code 0x5B–0x60}、{@code 0x7B–0x7E}），
-     * <b>不动字母、数字与空格</b> —— 别把拼音/英文全角化。
+     * <p><b>范围 = 整段 ASCII 可打印区</b>（{@code 0x21–0x7E} 全部 {@code +0xFEE0}，
+     * 空格 → {@code U+3000}）—— 与搜狗 OEM Ext 的 {@code PunctPipeline.toFullWidth} 完全一致。
+     *
+     * <p>⚠️ 2026-09-21 用户纠正：gb 那边"全角化只动符号、不动字母数字"是<b>做错了</b>
+     * （我先前照它抄了一遍，也错）—— 全角就是**全部全角**：
+     * {@code 123} → {@code １２３}、{@code abc} → {@code ａｂｃ}、{@code ,} → {@code ，}。
+     * 拼音是 <b>composing</b>（走 {@code setComposingText}，本层不碰），
+     * 所以不会出现"拼音被全角化到没法看"，只有真正上屏的 ASCII 才会全角。
      */
     static String toFullWidth(CharSequence src) {
         if (src == null || src.length() == 0) return null;
@@ -123,9 +129,11 @@ final class TextNorm {
         boolean changed = false;
         for (int i = 0; i < src.length(); i++) {
             final char c = src.charAt(i);
-            if ((c >= 0x21 && c <= 0x2F) || (c >= 0x3A && c <= 0x40)
-                    || (c >= 0x5B && c <= 0x60) || (c >= 0x7B && c <= 0x7E)) {
+            if (c >= 0x21 && c <= 0x7E) {
                 sb.append((char) (c + 0xFEE0));
+                changed = true;
+            } else if (c == ' ') {
+                sb.append((char) 0x3000);   // 空格 → 全角空格（搜狗同款）
                 changed = true;
             } else {
                 sb.append(c);

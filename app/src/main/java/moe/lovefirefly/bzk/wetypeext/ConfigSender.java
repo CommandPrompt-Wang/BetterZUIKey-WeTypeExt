@@ -39,7 +39,8 @@ final class ConfigSender {
             i.putExtra(BroadcastConfig.EXTRA_SHIFT_PASSTHRU, cfg.shiftPassThrough);
             i.putExtra(BroadcastConfig.EXTRA_SMART_NUMBER, cfg.smartNumber);
             i.putExtra(BroadcastConfig.EXTRA_FULLWIDTH, cfg.fullwidthFeature);
-            i.putExtra(BroadcastConfig.EXTRA_EN_PUNCT, cfg.enPunct);
+            i.putExtra(BroadcastConfig.EXTRA_EN_PUNCT, cfg.enPunctFeature);
+            i.putExtra(BroadcastConfig.EXTRA_WANT_STATE, true);   // 顺手要一次状态位
             i.putExtra(BroadcastConfig.EXTRA_AUTO_PAIR, cfg.autoPair);
             i.putExtra(BroadcastConfig.EXTRA_CLOSE_SKIP, cfg.closeSkip);
             i.putExtra(BroadcastConfig.EXTRA_SHIFT_FIX, cfg.shiftSwitchFix);

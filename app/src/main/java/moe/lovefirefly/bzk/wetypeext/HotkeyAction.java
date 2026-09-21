@@ -23,6 +23,10 @@ enum HotkeyAction {
     FULLWIDTH_SWITCH("fullwidth", "全角 / 半角切换",
             KeyEvent.KEYCODE_SPACE, true, false, false),
 
+    /** 中英文标点切换（对齐 gb/SogouExt 的 Ctrl+.）。 */
+    PUNCT_SWITCH("punct", "中英文标点切换",
+            KeyEvent.KEYCODE_PERIOD, false, true, false),
+
     // ---- TASK 6：微信功能的物理键入口（函数码来自键盘布局 JSON 的 touchFunctionCode）----
 
     /** 语音输入（布局里 {@code id=voice} 的那个键，函数码 25）。默认 Alt+H。 */

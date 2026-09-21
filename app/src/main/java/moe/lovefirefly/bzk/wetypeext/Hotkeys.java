@@ -120,6 +120,39 @@ final class Hotkeys {
         }
     }
 
+    /**
+     * 把输入法窗口<b>真正显示出来</b>。
+     *
+     * <p>为什么需要：物理键盘模式下微信把软键盘收着，界面上只有候选条，所以
+     * "切到某个面板"（emoji / 常用语 / 语音）内部状态明明变了（{@code switchKeyboard -> 504}），
+     * 用户却什么都看不到 —— 得再请系统把输入法窗口显示出来，那一屏才会画出来。
+     *
+     * <p>延后一点发：面板切换走的是主线程协程，紧接着调会被它自己的切换盖掉。
+     */
+    private static void showSelfSoon(final String what) {
+        try {
+            final Object svc = ServiceProbe.service();
+            if (!(svc instanceof android.inputmethodservice.InputMethodService)) return;
+            final android.inputmethodservice.InputMethodService ims =
+                    (android.inputmethodservice.InputMethodService) svc;
+            final android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+            // 试三次：收起软键盘/切面板都可能有延迟，一次请求容易被后面的收起盖掉
+            for (long delay : new long[]{120L, 500L, 1000L}) {
+                h.postDelayed(() -> {
+                    try {
+                        ims.requestShowSelf(0);
+                        Log.i(TAG, "showSelf(" + what + "): requestShowSelf(0) shown="
+                                + ims.isInputViewShown());
+                    } catch (Throwable tr) {
+                        Log.w(TAG, "showSelf failed: " + tr);
+                    }
+                }, delay);
+            }
+        } catch (Throwable tr) {
+            Log.w(TAG, "showSelfSoon err: " + tr);
+        }
+    }
+
     /** 执行动作。@return true = 吞键（false = 放行，例如功能开关关着） */
     private static boolean invoke(HotkeyAction a, KeyEvent ev, boolean down) {
         switch (a) {
@@ -132,6 +165,18 @@ final class Hotkeys {
                     PunctState.setFullwidth(ctx, on);
                     Log.i(TAG, "hotkey " + a.id + " -> fullwidth=" + on);
                     Banner.show("全角模式：" + (on ? "开" : "关"));
+                }
+                return true;
+            }
+            case PUNCT_SWITCH: {
+                // 功能门关着 ⇒ 一个字节都不碰（对齐 gb：门只管"允不允许切"）
+                if (!ExtConfig.get().enPunctFeature) return false;
+                if (down && ev.getRepeatCount() == 0) {
+                    final android.content.Context ctx = WeTypeInternals.appContext();
+                    final boolean en = !PunctState.enPunct();
+                    PunctState.setEnPunct(ctx, en);
+                    Log.i(TAG, "hotkey " + a.id + " -> enPunct=" + en);
+                    Banner.show("中英文标点：" + (en ? "英文标点" : "中文标点"));
                 }
                 return true;
             }
@@ -154,6 +199,7 @@ final class Hotkeys {
                     }
                     Log.i(TAG, "hotkey " + a.id + " -> " + what + " ok=" + ok);
                     Banner.show(ok ? what : what + "：入口不可用");
+                    if (ok) showSelfSoon(what);
                 }
                 return true;
             }

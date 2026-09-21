@@ -22,6 +22,14 @@ public class MainActivity extends Activity {
 
     private SharedPreferences prefs;
 
+    /** 「全角模式 / 中英文标点」两行的状态显示（由模块回传的镜像广播刷新）。 */
+    private Switch fullwidthSwitch;
+    private Switch enPunctSwitch;
+    /** 最近一次从模块拿到的状态位；null = 还没收到。 */
+    private Boolean stateFullwidth;
+    private Boolean stateEnPunct;
+    private android.content.BroadcastReceiver stateReceiver;
+
     /** 快捷键区：每个动作一行，点一下进入"按下组合键"录制。 */
     private final java.util.Map<HotkeyAction, TextView> hotkeyRows =
             new java.util.EnumMap<>(HotkeyAction.class);
@@ -83,15 +91,17 @@ public class MainActivity extends Activity {
                         + "判据是「末字符是 。/） 且它前面是数字」，一起上屏或分两次上屏都能命中。",
                 ExtConfig.KEY_SMART_NUMBER, cfg.smartNumber);
 
-        addSwitch(root, "使用英文标点",
-                "开：物理键盘打出的中文标点落成 ASCII（，→, 。→. ！→! ？→? ；→; ：→: （）→() 【】→[] “”→\"\" ‘'→''）。"
-                        + "关（默认）：中文标点保持全角。软键盘上点的 ，/。 不受影响。",
-                ExtConfig.KEY_EN_PUNCT, cfg.enPunct);
+        enPunctSwitch = addSwitch(root, "中英文标点",
+                "允许中文模式下在中英标点之间切换（对齐搜狗/gb 的做法，不是「一律用英文标点」的大开关）："
+                        + "物理键盘按 Ctrl+. 切换状态位，切到「英文标点」时中文标点落成 ASCII"
+                        + "（，→, 。→. ！→! ？→? ；→; ：→: （）→() 【】→[] “”→\"\" ‘'→''）。\n"
+                        + "快捷键可在下面的「快捷键」区改。关掉这个门 = 恢复原生（Ctrl+. 也不吞）。",
+                ExtConfig.KEY_EN_PUNCT_FEATURE, cfg.enPunctFeature);
 
-        addSwitch(root, "启用全角模式（Shift+Space 切换）",
-                "这是**功能开关**：打开后物理键盘按 Shift+Space 切换全角/半角状态位，"
-                        + "状态为「全角」时把 ASCII 符号转全角（只动符号，不动字母数字，免得拼音被全角化）。\n"
-                        + "开关关掉 = 完全恢复正常（Shift+Space 也不吞，空格照常）。",
+        fullwidthSwitch = addSwitch(root, "全角模式",
+                "允许在全角/半角之间切换：物理键盘按 Shift+Space 切状态位，"
+                        + "状态为「全角」时把 ASCII **符号**转全角（只动符号，不动字母数字，免得拼音/英文被全角化）。\n"
+                        + "快捷键可在下面的「快捷键」区改。关掉这个门 = 完全恢复原生（Shift+Space 也不吞，空格照常）。",
                 ExtConfig.KEY_FULLWIDTH_FEATURE, cfg.fullwidthFeature);
 
         addSwitch(root, "括号/引号自动配对",
@@ -124,7 +134,10 @@ public class MainActivity extends Activity {
         sv.addView(root);
         setContentView(sv);
 
-        // 进页面补发一次：微信进程当时没跑的话，这条会在它下次起来前一直缺失
+        registerStateReceiver();
+
+        // 进页面补发一次：微信进程当时没跑的话，这条会在它下次起来前一直缺失。
+        // 顺带向模块要一次状态位（全角/半角、中文标点/英文标点）来回填两行的显示。
         ConfigSender.send(this, prefs);
     }
 
@@ -159,6 +172,65 @@ public class MainActivity extends Activity {
                     ? a.label + "：请按下组合键…（退格清除 / Esc 取消）"
                     : a.label + "：" + combo);
         }
+    }
+
+    /**
+     * 收模块回传的状态位镜像（{@link BroadcastConfig#ACTION_STATE}，显式指定本包名）。
+     *
+     * <p>为什么要走广播：状态位住在微信进程自己的 prefs 里，App 物理上读不到（targetSdk 35
+     * 的包可见性也让它读不到），只能由模块推过来 —— 与 gb 的做法一致。
+     */
+    private void registerStateReceiver() {
+        try {
+            stateReceiver = new android.content.BroadcastReceiver() {
+                @Override
+                public void onReceive(android.content.Context c, android.content.Intent intent) {
+                    if (intent == null) return;
+                    if (intent.hasExtra(BroadcastConfig.EXTRA_ST_FULLWIDTH)) {
+                        stateFullwidth = intent.getBooleanExtra(
+                                BroadcastConfig.EXTRA_ST_FULLWIDTH, false);
+                    }
+                    if (intent.hasExtra(BroadcastConfig.EXTRA_ST_EN_PUNCT)) {
+                        stateEnPunct = intent.getBooleanExtra(
+                                BroadcastConfig.EXTRA_ST_EN_PUNCT, false);
+                    }
+                    refreshStateText();
+                }
+            };
+            final android.content.IntentFilter f =
+                    new android.content.IntentFilter(BroadcastConfig.ACTION_STATE);
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(stateReceiver, f, android.content.Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(stateReceiver, f);
+            }
+        } catch (Throwable tr) {
+            stateReceiver = null;
+        }
+    }
+
+    /** 把"当前：全角/半角、英文标点/中文标点"写回两行标题。 */
+    private void refreshStateText() {
+        if (fullwidthSwitch != null) {
+            fullwidthSwitch.setText("全角模式（当前："
+                    + (stateFullwidth == null ? "?" : (stateFullwidth ? "全角" : "半角")) + "）");
+        }
+        if (enPunctSwitch != null) {
+            enPunctSwitch.setText("中英文标点（当前："
+                    + (stateEnPunct == null ? "?" : (stateEnPunct ? "英文标点" : "中文标点")) + "）");
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (stateReceiver != null) {
+            try {
+                unregisterReceiver(stateReceiver);
+            } catch (Throwable ignored) {
+            }
+            stateReceiver = null;
+        }
+        super.onDestroy();
     }
 
     @Override
@@ -206,7 +278,7 @@ public class MainActivity extends Activity {
         return super.dispatchKeyEvent(event);
     }
 
-    private void addSwitch(LinearLayout root, String title, String desc,
+    private Switch addSwitch(LinearLayout root, String title, String desc,
             final String key, boolean def) {
         final Switch sw = new Switch(this);
         sw.setText(title);
@@ -222,6 +294,7 @@ public class MainActivity extends Activity {
         });
         root.addView(sw);
         addHint(root, desc);
+        return sw;
     }
 
     private void addTitle(LinearLayout root, String text) {

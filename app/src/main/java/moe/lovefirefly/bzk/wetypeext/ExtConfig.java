@@ -33,7 +33,7 @@ final class ExtConfig {
     static final String KEY_SHIFT_PASSTHRU = "shiftPassThrough";
     static final String KEY_SMART_NUMBER = "smartNumber";
     static final String KEY_FULLWIDTH_FEATURE = "fullwidthFeature";
-    static final String KEY_EN_PUNCT = "enPunct";
+    static final String KEY_EN_PUNCT_FEATURE = "enPunctFeature";
     /** TASK 1 括号/引号配对总开关（见 {@link PairGate}）。 */
     static final String KEY_AUTO_PAIR = "autoPair";
     /** TASK 1 补充：跳过已存在的闭合符号。 */
@@ -54,10 +54,18 @@ final class ExtConfig {
     static final boolean DEF_SHIFT_PASSTHRU = true;
     /** TASK 2 智能编号：数字后的 。/） 用半角。默认开。 */
     static final boolean DEF_SMART_NUMBER = true;
-    /** TASK 3 全角模式的**功能开关**（状态位另见 {@link PunctState}，由 Shift+Space 切换）。默认关。 */
-    static final boolean DEF_FULLWIDTH_FEATURE = false;
-    /** TASK 4 中英标点：开 = 用英文（ASCII）标点。默认关 = 中文标点。 */
-    static final boolean DEF_EN_PUNCT = false;
+    /**
+     * 全角模式的**功能门**（状态位另见 {@link PunctState}，由 Shift+Space 切换）。
+     *
+     * <p>对齐 gb：门<b>默认开</b>，状态位默认"半角"；关掉门 = 完全恢复原生（热键也不吞）。
+     */
+    static final boolean DEF_FULLWIDTH_FEATURE = true;
+    /**
+     * 中英文标点的**功能门**（状态位另见 {@link PunctState}，由 Ctrl+. 切换）。
+     *
+     * <p>对齐 gb：门<b>默认开</b>，状态位默认"中文标点"。
+     */
+    static final boolean DEF_EN_PUNCT_FEATURE = true;
     /**
      * TASK 1 括号/引号配对（微信原生行为）：开 = 自动补全 + 选中自动包裹；关 = 只上屏你打的那个字符。
      *
@@ -117,8 +125,8 @@ final class ExtConfig {
     /** TASK 3 全角模式**功能开关**。转换条件是 {@code fullwidthFeature && PunctState.fullwidth()}。 */
     final boolean fullwidthFeature;
 
-    /** TASK 4 中英标点：true = 英文（ASCII）标点。 */
-    final boolean enPunct;
+    /** 中英文标点：true = 允许用 Ctrl+. 在中文标点/英文标点之间切（状态位在 {@link PunctState}）。 */
+    final boolean enPunctFeature;
 
     /** TASK 1 括号/引号配对：true = 微信原生（自动补全 + 选中包裹）。 */
     final boolean autoPair;
@@ -135,7 +143,7 @@ final class ExtConfig {
     ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart,
             boolean syncBackToFramework, boolean strictFrameworkOnly,
             boolean shiftPassThrough, boolean smartNumber,
-            boolean fullwidthFeature, boolean enPunct, boolean autoPair,
+            boolean fullwidthFeature, boolean enPunctFeature, boolean autoPair,
             boolean closeSkip, boolean shiftSwitchFix, String hotkeys) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
@@ -145,7 +153,7 @@ final class ExtConfig {
         this.shiftPassThrough = shiftPassThrough;
         this.smartNumber = smartNumber;
         this.fullwidthFeature = fullwidthFeature;
-        this.enPunct = enPunct;
+        this.enPunctFeature = enPunctFeature;
         this.autoPair = autoPair;
         this.closeSkip = closeSkip;
         this.shiftSwitchFix = shiftSwitchFix;
@@ -155,7 +163,7 @@ final class ExtConfig {
     static ExtConfig defaults() {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
                 DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER,
-                DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT, DEF_AUTO_PAIR,
+                DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT_FEATURE, DEF_AUTO_PAIR,
                 DEF_CLOSE_SKIP, DEF_SHIFT_FIX, "");
     }
 
@@ -171,7 +179,7 @@ final class ExtConfig {
                     sp.getBoolean(KEY_SHIFT_PASSTHRU, DEF_SHIFT_PASSTHRU),
                     sp.getBoolean(KEY_SMART_NUMBER, DEF_SMART_NUMBER),
                     sp.getBoolean(KEY_FULLWIDTH_FEATURE, DEF_FULLWIDTH_FEATURE),
-                    sp.getBoolean(KEY_EN_PUNCT, DEF_EN_PUNCT),
+                    sp.getBoolean(KEY_EN_PUNCT_FEATURE, DEF_EN_PUNCT_FEATURE),
                     sp.contains(KEY_AUTO_PAIR) ? sp.getBoolean(KEY_AUTO_PAIR, DEF_AUTO_PAIR)
                             : DEF_AUTO_PAIR,
                     sp.getBoolean(KEY_CLOSE_SKIP, DEF_CLOSE_SKIP),
@@ -207,7 +215,7 @@ final class ExtConfig {
                     .putBoolean(KEY_SHIFT_PASSTHRU, c.shiftPassThrough)
                     .putBoolean(KEY_SMART_NUMBER, c.smartNumber)
                     .putBoolean(KEY_FULLWIDTH_FEATURE, c.fullwidthFeature)
-                    .putBoolean(KEY_EN_PUNCT, c.enPunct)
+                    .putBoolean(KEY_EN_PUNCT_FEATURE, c.enPunctFeature)
                     .putBoolean(KEY_AUTO_PAIR, c.autoPair)
                     .putBoolean(KEY_CLOSE_SKIP, c.closeSkip)
                     .putBoolean(KEY_SHIFT_FIX, c.shiftSwitchFix)
@@ -227,7 +235,7 @@ final class ExtConfig {
                 + "-sp" + (shiftPassThrough ? 1 : 0)
                 + "-sn" + (smartNumber ? 1 : 0)
                 + "-fw" + (fullwidthFeature ? 1 : 0)
-                + "-ep" + (enPunct ? 1 : 0)
+                + "-ep" + (enPunctFeature ? 1 : 0)
                 + "-ap" + (autoPair ? 1 : 0)
                 + "-cs" + (closeSkip ? 1 : 0)
                 + "-sf" + (shiftSwitchFix ? 1 : 0)
@@ -243,7 +251,7 @@ final class ExtConfig {
                 + " strict=" + strictFrameworkOnly
                 + " shiftPass=" + shiftPassThrough
                 + " smartNumber=" + smartNumber
-                + " fullwidthFeature=" + fullwidthFeature + " enPunct=" + enPunct
+                + " fullwidthFeature=" + fullwidthFeature + " enPunctFeature=" + enPunctFeature
                 + " autoPair=" + autoPair + " closeSkip=" + closeSkip
                 + " shiftFix=" + shiftSwitchFix
                 + " hotkeys=" + hotkeys;

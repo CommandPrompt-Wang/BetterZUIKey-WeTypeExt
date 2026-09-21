@@ -8,8 +8,14 @@ import android.view.View;
  *
  * <p>为什么不用 Toast：搜狗那边实测 Toast 会被系统按应用通知设置拦掉
  * （{@code NotificationService: Suppressing toast ... by user request}），
- * 所以照 gb/搜狗同一套做法 —— 自己在输入法窗口上加一个 {@link android.widget.PopupWindow}，
- * 贴底居中、约屏幕高 12%、1.2 秒后消失。
+ * 所以自己画在输入法窗口上。
+ *
+ * <h3>2026-09-21 改法：不再用 PopupWindow</h3>
+ * 用户实测：物理键热键（会弹 Banner 的那几个）一按，<b>软键盘直接消失</b>，
+ * 而"只切状态不弹提示"的路径（全角开关关着时的 Shift+Space）不会 ——
+ * 怀疑是给输入法窗口再叠一个 PopupWindow 导致的。
+ * 现在改成把提示 View <b>直接加进输入法窗口自己的 View 树</b>（根 view = decor，
+ * 是 FrameLayout，加一个贴底居中的子 View 既不开新窗口、也不影响键盘本身的测量）。
  *
  * <p>视图由 {@link ServiceProbe} 在 {@code setInputView} 时塞进来。
  */
@@ -19,6 +25,8 @@ final class Banner {
 
     private static volatile View sView;
     private static volatile android.widget.PopupWindow sShowing;
+    /** 现在贴在输入法窗口里的那个提示 View（新版做法）。 */
+    private static volatile android.widget.TextView sOverlay;
 
     private Banner() {}
 
@@ -46,6 +54,31 @@ final class Banner {
             tv.setBackgroundColor(0xCC202020);
             tv.setPadding(padH, padV, padH, padV);
 
+            // 优先：直接塞进输入法窗口自己的 View 树（decor = FrameLayout）
+            final View root = anchor.getRootView();
+            if (root instanceof android.view.ViewGroup && root != anchor) {
+                final android.view.ViewGroup vg = (android.view.ViewGroup) root;
+                final android.widget.FrameLayout.LayoutParams lp =
+                        new android.widget.FrameLayout.LayoutParams(
+                                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                                android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                                android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL);
+                lp.bottomMargin = (int) (24 * density);
+                final android.widget.TextView old = sOverlay;
+                if (old != null && old.getParent() == vg) vg.removeView(old);
+                vg.addView(tv, lp);
+                sOverlay = tv;
+                tv.postDelayed(() -> {
+                    try {
+                        if (tv.getParent() == vg) vg.removeView(tv);
+                    } catch (Throwable ignored) {
+                    }
+                    if (sOverlay == tv) sOverlay = null;
+                }, 1200L);
+                return;
+            }
+
+            // 兜底：老路（PopupWindow）
             final android.widget.PopupWindow pw = new android.widget.PopupWindow(tv,
                     android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
                     android.view.ViewGroup.LayoutParams.WRAP_CONTENT, false);

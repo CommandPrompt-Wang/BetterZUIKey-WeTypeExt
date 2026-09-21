@@ -34,7 +34,10 @@ final class BroadcastConfig {
     static final String EXTRA_FULLWIDTH = ExtConfig.KEY_FULLWIDTH_FEATURE;
     /** 反向通道：模块 → App 回传当前状态位。 */
     static final String EXTRA_ST_FULLWIDTH = "stateFullwidth";
-    static final String EXTRA_EN_PUNCT = ExtConfig.KEY_EN_PUNCT;
+    static final String EXTRA_ST_EN_PUNCT = "stateEnPunct";
+    /** App 侧请求"把当前状态位回传一次"（设置页每次打开都要）。 */
+    static final String EXTRA_WANT_STATE = "wantState";
+    static final String EXTRA_EN_PUNCT = ExtConfig.KEY_EN_PUNCT_FEATURE;
     static final String EXTRA_AUTO_PAIR = ExtConfig.KEY_AUTO_PAIR;
     static final String EXTRA_CLOSE_SKIP = ExtConfig.KEY_CLOSE_SKIP;
     static final String EXTRA_SHIFT_FIX = ExtConfig.KEY_SHIFT_FIX;
@@ -81,7 +84,7 @@ final class BroadcastConfig {
                                     ExtConfig.DEF_SMART_NUMBER),
                             intent.getBooleanExtra(EXTRA_FULLWIDTH,
                                     ExtConfig.DEF_FULLWIDTH_FEATURE),
-                            intent.getBooleanExtra(EXTRA_EN_PUNCT, ExtConfig.DEF_EN_PUNCT),
+                            intent.getBooleanExtra(EXTRA_EN_PUNCT, ExtConfig.DEF_EN_PUNCT_FEATURE),
                             intent.getBooleanExtra(EXTRA_AUTO_PAIR, ExtConfig.DEF_AUTO_PAIR),
                             intent.getBooleanExtra(EXTRA_CLOSE_SKIP, ExtConfig.DEF_CLOSE_SKIP),
                             intent.getBooleanExtra(EXTRA_SHIFT_FIX, ExtConfig.DEF_SHIFT_FIX),
@@ -90,6 +93,10 @@ final class BroadcastConfig {
                     ExtConfig.set(cfg);
                     ExtConfig.persist(c == null ? ctx : c, cfg);
                     Log.i(TAG, "config broadcast -> " + cfg);
+                    // 设置页要当前状态位：回传一次（全角/半角、中文标点/英文标点）
+                    if (intent.getBooleanExtra(EXTRA_WANT_STATE, false)) {
+                        PunctState.mirrorNow(c == null ? ctx : c);
+                    }
                 }
             };
             final IntentFilter filter = new IntentFilter(ACTION);
