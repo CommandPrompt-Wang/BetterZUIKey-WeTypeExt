@@ -26,6 +26,20 @@ final class ConfigSender {
         }
     }
 
+    /** 告诉模块"设置页正在/不在录制快捷键"（录制期间热键让路）。 */
+    static void sendRecording(Context ctx, boolean on) {
+        if (ctx == null) return;
+        try {
+            final Intent i = new Intent(BroadcastConfig.ACTION_RECORDING);
+            i.setPackage(BridgeHook.WXKB_PKG);
+            i.putExtra(BroadcastConfig.EXTRA_RECORDING_FLAG, on);
+            ctx.sendBroadcast(i);
+            Log.i(TAG, "recording sent -> " + on);
+        } catch (Throwable tr) {
+            Log.w(TAG, "recording send failed: " + tr);
+        }
+    }
+
     static void send(Context ctx, SharedPreferences prefs) {
         try {
             final ExtConfig cfg = ExtConfig.load(prefs);

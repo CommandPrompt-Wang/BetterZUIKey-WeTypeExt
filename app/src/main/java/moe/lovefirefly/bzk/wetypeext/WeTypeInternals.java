@@ -32,6 +32,10 @@ final class WeTypeInternals {
     private static final String CLS_KEY_D = "com.tencent.wetype.plugin.hld.key.d";
     /** 键盘/面板枚举（jadx 名 {@code keyboard/EnumC2058t}）。 */
     private static final String CLS_PANEL_ENUM = "com.tencent.wetype.plugin.hld.keyboard.t";
+    /** 语音管理器（jadx 名 voice/C2678j）：状态查询 + simpleEndVoiceInput。 */
+    private static final String CLS_VOICE = "com.tencent.wetype.plugin.hld.voice.j";
+    /** 语音场景枚举（jadx 名 Tb/B5）。 */
+    private static final String CLS_VOICE_SCENE = "Tb.B5";
 
     /**
      * 函数码（TASK 6 用）—— 来自 APK 里键盘布局 JSON 的 {@code touchFunctionCode}
@@ -64,6 +68,13 @@ final class WeTypeInternals {
     private static volatile Method mFireFn;
     private static volatile Method mR3;
     private static volatile Class<?> sPanelEnum;
+    private static volatile Object sVoice;
+    private static volatile Method mVoiceInput;      // S2() = status == INPUT
+    private static volatile Method mVoiceRecognizing; // W2() = RECOGNIZING
+    private static volatile Method mVoiceAnim;        // P2() = ANIMATION_*
+    private static volatile Method mVoiceDisable;     // R2() = DISABLE
+    private static volatile Method mVoiceEnd;         // S3(B5, boolean, boolean) = simpleEndVoiceInput
+    private static volatile Class<?> sVoiceScene;
 
     private WeTypeInternals() {}
 
@@ -147,6 +158,20 @@ final class WeTypeInternals {
             Log.i(TAG, "internals panel: enum=" + sPanelEnum + " r3=" + (mR3 != null));
         } catch (Throwable tr) {
             Log.w(TAG, "internals panel unresolved: " + tr);
+        }
+        try {
+            final Class<?> v = Class.forName(CLS_VOICE, false, cl);
+            sVoice = findSingleton(v);
+            mVoiceInput = findMethod(v, "S2");
+            mVoiceRecognizing = findMethod(v, "W2");
+            mVoiceAnim = findMethod(v, "P2");
+            mVoiceDisable = findMethod(v, "R2");
+            sVoiceScene = Class.forName(CLS_VOICE_SCENE, false, cl);
+            mVoiceEnd = findMethod(v, "S3", sVoiceScene, boolean.class, boolean.class);
+            Log.i(TAG, "internals voice: singleton=" + (sVoice != null)
+                    + " S2=" + (mVoiceInput != null) + " S3=" + (mVoiceEnd != null));
+        } catch (Throwable tr) {
+            Log.w(TAG, "internals voice unresolved: " + tr);
         }
         try {
             final Class<?> j1 = Class.forName(CLS_J1, false, cl);
@@ -314,13 +339,15 @@ final class WeTypeInternals {
     }
 
     /**
-     * 打开「常用语 / 剪贴板」面板（{@code EnumC2058t.CustomPhraseAndClipboard}）。
+     * 打开「剪贴板 / 常用语」面板（{@code EnumC2058t.CustomPhraseAndClipboard}）。
+     *
+     * @param tabIndex 0 = 剪贴板（原生候选栏入口），1 = 常用语（原生设置页入口）
      *
      * <p>它没有函数码（键盘布局里没有这个键，是工具栏/候选区的入口），所以走面板切换
      * {@code N.r3(N, 面板枚举, Bundle, 默认参数掩码, 标记)}。枚举项按<b>名字</b>找
      * （Kotlin 枚举名保留了，找不到就扫一遍名字里带 Clipboard 的）。
      */
-    static boolean openClipboardPanel() {
+    static boolean openClipboardPanel(int tabIndex) {
         final Object self = sN;
         final Method r3 = mR3;
         if (self == null || r3 == null || sPanelEnum == null) return false;
@@ -334,11 +361,76 @@ final class WeTypeInternals {
                 Log.w(TAG, "openClipboardPanel: 没找到 Clipboard 面板项");
                 return false;
             }
-            r3.invoke(null, self, panel, null, 2, null);
-            Log.i(TAG, "openClipboardPanel: " + panel);
+            // 对齐原生入口：候选栏是 candidate/C1923t.java:1571（页签 0 = 剪贴板），
+            // 常用语是 settings/b.java:805（页签 1 = 常用语），两者都带 target_tab_index。
+            final android.os.Bundle b = new android.os.Bundle();
+            b.putInt("target_tab_index", tabIndex);
+            // ⚠️ mask 必须传 0！r3 是 Kotlin 的默认参数合成桥：
+            //     if ((mask & 2) != 0) bundle = null;   ← 第 2 位表示"bundle 用默认值"
+            //   我先前照抄 jadx 的 `N.r3(n10, panel, null, 2, null)`（那写法只在 bundle 真是 null 时才对）
+            //   传了 2 ⇒ 我们精心塞进去的 bundle 被置 null ⇒ target_tab_index 从来没生效
+            //   （真机现象：Alt+V 与 Alt+Shift+V 都落在默认的剪贴板页签）。
+            r3.invoke(null, self, panel, b, 0, null);
+            Log.i(TAG, "openClipboardPanel: " + panel + " (target_tab_index=" + tabIndex
+                    + ", bundle=" + b + ")");
             return true;
         } catch (Throwable tr) {
             Log.w(TAG, "openClipboardPanel failed: " + tr);
+            return false;
+        }
+    }
+
+    private static boolean callBool(Method m, Object self) {
+        if (m == null || self == null) return false;
+        try {
+            return Boolean.TRUE.equals(m.invoke(self));
+        } catch (Throwable tr) {
+            return false;
+        }
+    }
+
+    /** 语音输入是否"正在进行"（INPUT / 识别中 / 动画中 都算）。 */
+    static boolean voiceActive() {
+        final Object v = sVoice;
+        return callBool(mVoiceInput, v) || callBool(mVoiceRecognizing, v)
+                || callBool(mVoiceAnim, v);
+    }
+
+    /** 给日志用的语音状态串。 */
+    static String voiceState() {
+        final Object v = sVoice;
+        return "INPUT=" + callBool(mVoiceInput, v)
+                + " RECOG=" + callBool(mVoiceRecognizing, v)
+                + " ANIM=" + callBool(mVoiceAnim, v)
+                + " DISABLE=" + callBool(mVoiceDisable, v);
+    }
+
+    /**
+     * 结束语音输入（{@code voice/j.S3(scene, forceStop=true, allowDelay=false)} = {@code simpleEndVoiceInput}）。
+     *
+     * <p>场景取 {@code voice_input_scene_keyboard_number} —— 和 {@code key/d.J()} 开启语音时用的同一个场景，
+     * 统计口径一致。
+     */
+    static boolean endVoiceInput() {
+        final Object v = sVoice;
+        final Method m = mVoiceEnd;
+        if (v == null || m == null || sVoiceScene == null) return false;
+        try {
+            Object scene = null;
+            for (Object c : sVoiceScene.getEnumConstants()) {
+                final String n = String.valueOf(c);
+                if (n.contains("keyboard_number")) { scene = c; break; }
+                if (scene == null && n.contains("keyboard")) scene = c;
+            }
+            if (scene == null) {
+                Log.w(TAG, "endVoiceInput: 找不到语音场景常量");
+                return false;
+            }
+            m.invoke(v, scene, true, false);
+            Log.i(TAG, "endVoiceInput: " + scene);
+            return true;
+        } catch (Throwable tr) {
+            Log.w(TAG, "endVoiceInput failed: " + tr);
             return false;
         }
     }

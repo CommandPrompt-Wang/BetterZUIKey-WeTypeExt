@@ -37,11 +37,27 @@ final class BroadcastConfig {
     static final String EXTRA_ST_EN_PUNCT = "stateEnPunct";
     /** App 侧请求"把当前状态位回传一次"（设置页每次打开都要）。 */
     static final String EXTRA_WANT_STATE = "wantState";
+
+    // ---- 开发期调试通道（只在本进程里生效，正式用途别用）----
+    /** 切到某个面板（如 501 = 常用语/剪贴板、504 = 表情），切完打 View 树。 */
+    static final String EXTRA_DBG_PANEL = "dbgPanel";
+    /** 只打 View 树。 */
+    static final String EXTRA_DBG_DUMP = "dbgDump";
+    /** 请输入法把窗口显示出来（等价于热键里的补显示那一步）。 */
+    static final String EXTRA_DBG_SHOW = "dbgShow";
+    /** requestShowSelf 的 flags（0=implicit、1=forced、2=explicit），用来试哪种能压过宿主。 */
+    static final String EXTRA_DBG_SHOW_FLAGS = "dbgShowFlags";
+    /** 跑一个微信函数码（22=表情、25=语音…），跑完打 View 树。 */
+    static final String EXTRA_DBG_FUNC = "dbgFunc";
     static final String EXTRA_EN_PUNCT = ExtConfig.KEY_EN_PUNCT_FEATURE;
     static final String EXTRA_AUTO_PAIR = ExtConfig.KEY_AUTO_PAIR;
     static final String EXTRA_CLOSE_SKIP = ExtConfig.KEY_CLOSE_SKIP;
     static final String EXTRA_SHIFT_FIX = ExtConfig.KEY_SHIFT_FIX;
     static final String EXTRA_HOTKEYS = ExtConfig.KEY_HOTKEYS;
+
+    /** 设置页"正在录制快捷键"的专用 action（App → 模块）：录制期间热键临时不响应。 */
+    static final String ACTION_RECORDING = "moe.lovefirefly.bzk.wetypeext.RECORDING";
+    static final String EXTRA_RECORDING_FLAG = "recording";
 
     /** 回传状态用的 action（模块 → App，显式指定包名投递）。 */
     static final String ACTION_STATE = "moe.lovefirefly.bzk.wetypeext.STATE";
@@ -97,6 +113,39 @@ final class BroadcastConfig {
                     if (intent.getBooleanExtra(EXTRA_WANT_STATE, false)) {
                         PunctState.mirrorNow(c == null ? ctx : c);
                     }
+                    // 开发期调试：切面板 / 打 View 树（我自己在设备上验证用）
+                    if (BridgeHook.DEV_PROBE) {
+                        final int panel = intent.getIntExtra(EXTRA_DBG_PANEL, 0);
+                        final boolean dump = intent.getBooleanExtra(EXTRA_DBG_DUMP, false);
+                        if (panel != 0) {
+                            Log.i(TAG, "dbg: switchKeyboard -> " + panel + " ok="
+                                    + WeTypeInternals.switchKeyboard(panel));
+                            new android.os.Handler(android.os.Looper.getMainLooper())
+                                    .postDelayed(() -> HideProbe.dumpTree("dbgPanel" + panel), 800L);
+                        } else if (dump) {
+                            HideProbe.dumpTree("dbgDump");
+                        }
+                        final int fn = intent.getIntExtra(EXTRA_DBG_FUNC, 0);
+                        if (fn != 0) {
+                            Log.i(TAG, "dbg: fireFunction(" + fn + ") ok="
+                                    + WeTypeInternals.fireFunction(fn));
+                            new android.os.Handler(android.os.Looper.getMainLooper())
+                                    .postDelayed(() -> HideProbe.dumpTree("dbgFunc" + fn), 800L);
+                        }
+                        if (intent.getBooleanExtra(EXTRA_DBG_SHOW, false)) {
+                            final Object svc = ServiceProbe.service();
+                            if (svc instanceof android.inputmethodservice.InputMethodService) {
+                                final int flags = intent.getIntExtra(EXTRA_DBG_SHOW_FLAGS, 0);
+                                ((android.inputmethodservice.InputMethodService) svc)
+                                        .requestShowSelf(flags);
+                                Log.i(TAG, "dbg: requestShowSelf(" + flags + ") done, shown="
+                                        + ((android.inputmethodservice.InputMethodService) svc)
+                                                .isInputViewShown());
+                            }
+                            new android.os.Handler(android.os.Looper.getMainLooper())
+                                    .postDelayed(() -> HideProbe.dumpTree("dbgShow"), 700L);
+                        }
+                    }
                 }
             };
             final IntentFilter filter = new IntentFilter(ACTION);
@@ -107,6 +156,23 @@ final class BroadcastConfig {
                 ctx.registerReceiver(receiver, filter);
             }
             Log.i(TAG, "config receiver registered");
+
+            // 2b) 录制标记：设置页正在录快捷键时，热键要临时让路（否则一按组合键就把动作跑掉了）
+            final BroadcastReceiver recReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, Intent intent) {
+                    if (intent == null) return;
+                    final boolean on = intent.getBooleanExtra(EXTRA_RECORDING_FLAG, false);
+                    Hotkeys.setRecording(on);
+                    Log.i(TAG, "recording -> " + on);
+                }
+            };
+            final IntentFilter recFilter = new IntentFilter(ACTION_RECORDING);
+            if (Build.VERSION.SDK_INT >= 33) {
+                ctx.registerReceiver(recReceiver, recFilter, Context.RECEIVER_EXPORTED);
+            } else {
+                ctx.registerReceiver(recReceiver, recFilter);
+            }
         } catch (Throwable tr) {
             Log.w(TAG, "config receiver failed: " + tr);
         }

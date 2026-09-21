@@ -150,14 +150,23 @@ public class MainActivity extends Activity {
             final TextView row = new TextView(this);
             row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
             row.setPadding(0, dp(12), 0, dp(2));
-            row.setOnClickListener(v -> {
-                recording = a;
-                refreshHotkeyRows();
-            });
+            row.setOnClickListener(v -> setRecording(a));
             hotkeyRows.put(a, row);
             root.addView(row);
         }
         refreshHotkeyRows();
+    }
+
+    /**
+     * 进入 / 退出录制。
+     *
+     * <p>同时通知模块"临时屏蔽热键响应"：否则刚按下的组合键会先把动作跑掉，
+     * 而且键被模块吞了、设置页根本录不到（用户实测就是这个现象）。
+     */
+    private void setRecording(HotkeyAction a) {
+        recording = a;
+        refreshHotkeyRows();
+        ConfigSender.sendRecording(this, a != null);
     }
 
     private void refreshHotkeyRows() {
@@ -240,8 +249,7 @@ public class MainActivity extends Activity {
                 final int kc = event.getKeyCode();
                 // 返回 / Esc = 取消录制
                 if (kc == KeyEvent.KEYCODE_BACK || kc == KeyEvent.KEYCODE_ESCAPE) {
-                    recording = null;
-                    refreshHotkeyRows();
+                    setRecording(null);
                     return true;
                 }
                 // 退格 = 清除当前动作的绑定（设为"未设置"）
@@ -250,8 +258,7 @@ public class MainActivity extends Activity {
                             prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, 0, false, false,
                             false);
                     prefs.edit().putString(ExtConfig.KEY_HOTKEYS, cleared).apply();
-                    recording = null;
-                    refreshHotkeyRows();
+                    setRecording(null);
                     ConfigSender.send(this, prefs);
                     return true;
                 }
@@ -260,22 +267,88 @@ public class MainActivity extends Activity {
                     final boolean shift = (meta & KeyEvent.META_SHIFT_ON) != 0;
                     final boolean ctrl = (meta & KeyEvent.META_CTRL_ON) != 0;
                     final boolean alt = (meta & KeyEvent.META_ALT_ON) != 0;
-                    if (!shift && !ctrl && !alt) {
-                        // 没有修饰键的组合太容易误触，不受理
-                        return true;
-                    }
-                    final String next = HotkeyConfig.withCombo(
-                            prefs.getString(ExtConfig.KEY_HOTKEYS, ""), recording, kc, shift, ctrl,
-                            alt);
-                    prefs.edit().putString(ExtConfig.KEY_HOTKEYS, next).apply();
-                    recording = null;
-                    refreshHotkeyRows();
-                    ConfigSender.send(this, prefs);
+                    validateAndCommit(kc, shift, ctrl, alt);
                 }
             }
             return true;   // 录制期间把按键都吃掉
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    /**
+     * 录制的校验顺序（用户口径）：<b>非空？ → 重复？ → 放行</b>。
+     *
+     * <p>另外对"只有一个 Shift 修饰、而且按的是字母"的组合先弹一次警告 ——
+     * 那种组合会把大写字母打不出来（Shift 被当成快捷键吃掉了）。
+     */
+    private void validateAndCommit(final int kc, final boolean shift, final boolean ctrl,
+            final boolean alt) {
+        // ① 非空：至少要有一个修饰键
+        if (!shift && !ctrl && !alt) return;
+        // ② 重复：别的动作已经占了这个组合
+        final HotkeyAction dup = findDuplicate(kc, shift, ctrl, alt);
+        if (dup != null) {
+            ask("警告", "组合键 " + HotkeyConfig.describe(kc, shift, ctrl, alt)
+                    + " 已经被「" + dup.label + "」占用。\n要把它改绑到「" + recording.label
+                    + "」吗？（对方会变成未设置）", () -> {
+                clearCombo(dup);
+                commitCombo(kc, shift, ctrl, alt);
+            });
+            return;
+        }
+        // ③ 孤立 Shift + 字母：会顶掉大小写
+        if (shift && !ctrl && !alt && kc >= KeyEvent.KEYCODE_A && kc <= KeyEvent.KEYCODE_Z) {
+            ask("警告", "shift是字母大小写切换按钮，您是否确实要这样做？",
+                    () -> commitCombo(kc, shift, ctrl, alt));
+            return;
+        }
+        commitCombo(kc, shift, ctrl, alt);
+    }
+
+    private HotkeyAction findDuplicate(int kc, boolean shift, boolean ctrl, boolean alt) {
+        final java.util.Map<String, int[]> map =
+                HotkeyConfig.parse(prefs.getString(ExtConfig.KEY_HOTKEYS, ""), null);
+        for (HotkeyAction a : HotkeyAction.values()) {
+            if (a == recording) continue;
+            final int[] c = HotkeyConfig.comboOf(map, a);
+            if (c[0] != kc) continue;
+            if ((c[1] != 0) != shift) continue;
+            if ((c[2] != 0) != ctrl) continue;
+            if (((c.length >= 4 && c[3] != 0)) != alt) continue;
+            return a;
+        }
+        return null;
+    }
+
+    private void clearCombo(HotkeyAction a) {
+        final String next = HotkeyConfig.withCombo(
+                prefs.getString(ExtConfig.KEY_HOTKEYS, ""), a, 0, false, false, false);
+        prefs.edit().putString(ExtConfig.KEY_HOTKEYS, next).apply();
+    }
+
+    private void commitCombo(int kc, boolean shift, boolean ctrl, boolean alt) {
+        final HotkeyAction target = recording;
+        if (target == null) return;
+        final String next = HotkeyConfig.withCombo(
+                prefs.getString(ExtConfig.KEY_HOTKEYS, ""), target, kc, shift, ctrl, alt);
+        prefs.edit().putString(ExtConfig.KEY_HOTKEYS, next).apply();
+        setRecording(null);
+        ConfigSender.send(this, prefs);
+    }
+
+    /** 「是 / 否」二选一弹窗；选「否」= 放弃这次录制。 */
+    private void ask(String title, String msg, final Runnable onYes) {
+        try {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setMessage(msg)
+                    .setPositiveButton("是", (d, w) -> onYes.run())
+                    .setNegativeButton("否", (d, w) -> setRecording(null))
+                    .setCancelable(false)
+                    .show();
+        } catch (Throwable tr) {
+            onYes.run();   // 弹不出来就别卡住用户
+        }
     }
 
     private Switch addSwitch(LinearLayout root, String title, String desc,

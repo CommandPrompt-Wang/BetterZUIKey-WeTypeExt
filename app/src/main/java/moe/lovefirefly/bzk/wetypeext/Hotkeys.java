@@ -35,6 +35,16 @@ final class Hotkeys {
 
     private static volatile boolean sInstalled;
 
+    /**
+     * 设置页正在录制快捷键 —— 这期间<b>一个热键都不响应、也不吞键</b>，
+     * 否则用户刚按下组合键，动作就先跑掉了（还会把按键吃掉让设置页录不到）。
+     */
+    private static volatile boolean sRecording;
+
+    static void setRecording(boolean on) {
+        sRecording = on;
+    }
+
     /** 解析后的组合键缓存（按配置串做键，改配置自动重解析）。 */
     private static volatile String sCachedRaw;
     private static volatile Map<String, int[]> sCombos;
@@ -44,12 +54,18 @@ final class Hotkeys {
     static void install(XposedModule module, ClassLoader cl) {
         if (sInstalled) return;
         sInstalled = true;
+        // ⚠️ 挂 <b>服务实例类</b>的 onKeyDown/onKeyUp，不是 hardware/d.n/o：
+        //   微信的 onKeyDown 里有一道闸门 ——
+        //     if (!keyboardShow && !(A–Z 触发的硬件模式)) return false;
+        //   非字母键（; = . 这类）在"还没进硬件模式"时会被它直接丢掉，键漏给宿主
+        //   （用户实测：没打字母时按 Alt+; 直接打出分号，输入法全程没收到）。
+        //   挂在闸门之前才收得全；同时 InputSource 标记 / ShiftFix 也在这里喂。
         try {
-            final Class<?> d = Class.forName(
-                    "com.tencent.wetype.plugin.hld.hardware.d", false, cl);
-            hook(module, d, "n", true);
-            hook(module, d, "o", false);
-            Log.i(TAG, "Hotkeys: hooked hardware.d.n / o");
+            final Class<?> svc = Class.forName(
+                    "com.tencent.wetype.plugin.hld.WxHldService", false, cl);
+            hook(module, svc, "onKeyDown", true);
+            hook(module, svc, "onKeyUp", false);
+            Log.i(TAG, "Hotkeys: hooked WxHldService.onKeyDown / onKeyUp（闸门之前）");
         } catch (Throwable tr) {
             Log.w(TAG, "Hotkeys: install failed: " + tr);
         }
@@ -94,6 +110,7 @@ final class Hotkeys {
     private static boolean route(io.github.libxposed.api.XposedInterface.Chain chain,
             boolean down) {
         try {
+            if (sRecording) return false;    // 录制中：让路，不吞键也不动作
             final Object kcArg = chain.getArg(0);
             final Object evArg = chain.getArg(1);
             if (!(kcArg instanceof Integer) || !(evArg instanceof KeyEvent)) return false;
@@ -118,6 +135,97 @@ final class Hotkeys {
             Log.w(TAG, "Hotkeys.route err: " + tr);
             return false;
         }
+    }
+
+    /**
+     * 面板类动作（语音 / 表情 / 剪贴板）的<b>正确顺序</b>。
+     *
+     * <h3>为什么顺序不能反（2026-09-21 真机实测）</h3>
+     * <ul>
+     *   <li>窗口<b>已经显示</b>时直接切面板 ⇒ 面板正常画出来（截屏验证过：表情网格、
+     *       常用语/剪贴板页签都在）；</li>
+     *   <li>窗口<b>没显示</b>时先切面板、再 {@code requestShowSelf} ⇒ 微信在
+     *       "窗口显示"这一步会把键盘<b>恢复成默认</b>（实测 {@code kb: 504 -> 1}），
+     *       刚切好的面板被顶掉 —— 现象就是"按了没反应 / 键盘一闪"。</li>
+     * </ul>
+     * 所以：先请窗口出来，等它稳定（{@code onWindowShown} 那套跑完）再切面板。
+     */
+    /**
+     * 面板类动作（语音 / 表情 / 剪贴板）。
+     *
+     * <h3>为什么不在这里 requestShowSelf（2026-09-21 真机结论）</h3>
+     * 面板要画在输入法窗口里，所以"窗口得是显示状态"。但实测：
+     * <ul>
+     *   <li>窗口已经在显示（普通 EditText 宿主 / 微信自己的设置页）：直接切面板即可，
+     *       截屏验证过 emoji 网格与「剪贴板/常用语」页签；</li>
+     *   <li>窗口没显示、我们主动 {@code requestShowSelf}：宿主可以拒绝 ——
+     *       Edge/Chromium 会在 {@code PHASE_CLIENT_APPLY_ANIMATION} 直接
+     *       {@code onCancelled}（flags 0/1/2 都试过，全部被取消），窗口停在 0×0，
+     *       面板再切也画不出来。此时我们<b>什么也做不了</b>，只能静默（宿主自己按物理键盘
+     *       模式收着软键盘，微信原生面板同样出不来）。</li>
+     * </ul>
+     * 另外微信自己的 {@code WxHldService.onKeyDown} 在"物理键 + 键盘没显示"时本来就会
+     * {@code requestShowSelf(0)}（见其源码），所以这一刀轮不到我们补。
+     */
+    private static void runPanelAction(final HotkeyAction a) {
+        // 键被我们在闸门之前吞了 ⇒ 微信自己那句 requestShowSelf(0) 也不会跑，
+        // 于是动作在后台发生、窗口不出现。这里替它补上（顺序仍是"先请窗口、再动作"）。
+        final Object svc = ServiceProbe.service();
+        if (!(svc instanceof android.inputmethodservice.InputMethodService)) {
+            doPanelAction(a);
+            return;
+        }
+        final android.inputmethodservice.InputMethodService ims =
+                (android.inputmethodservice.InputMethodService) svc;
+        // 结束语音那一下 UI 本来就在，不用再请
+        final boolean skipShow = a == HotkeyAction.VOICE_INPUT && WeTypeInternals.voiceActive();
+        if (skipShow) {
+            doPanelAction(a);
+            return;
+        }
+        try {
+            Log.i(TAG, "panel " + a.id + ": shown=" + ims.isInputViewShown()
+                    + " -> requestShowSelf(0)");
+            ims.requestShowSelf(0);
+        } catch (Throwable tr) {
+            Log.w(TAG, "panel " + a.id + ": requestShowSelf failed: " + tr);
+        }
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                Log.i(TAG, "panel " + a.id + ": after show shown=" + ims.isInputViewShown());
+            } catch (Throwable ignored) {
+            }
+            doPanelAction(a);
+        }, 350L);
+    }
+
+    /** 真正执行面板动作（此时窗口应已显示）。 */
+    private static void doPanelAction(HotkeyAction a) {
+        final boolean ok;
+        final String what;
+        if (a == HotkeyAction.VOICE_INPUT) {
+            // 开关式：正在语音里就结束，否则开始
+            final boolean active = WeTypeInternals.voiceActive();
+            Log.i(TAG, "hotkey voice: " + WeTypeInternals.voiceState() + " -> active=" + active);
+            if (active) {
+                what = "结束语音输入";
+                ok = WeTypeInternals.endVoiceInput();
+            } else {
+                what = "语音输入";
+                ok = WeTypeInternals.fireFunction(WeTypeInternals.FN_VOICE);
+            }
+        } else if (a == HotkeyAction.EMOJI) {
+            what = "表情";
+            ok = WeTypeInternals.fireFunction(WeTypeInternals.FN_EMOJI);
+        } else if (a == HotkeyAction.PHRASE) {
+            what = "常用语";
+            ok = WeTypeInternals.openClipboardPanel(1);
+        } else {
+            what = "剪贴板";
+            ok = WeTypeInternals.openClipboardPanel(0);
+        }
+        Log.i(TAG, "hotkey " + a.id + " -> " + what + " ok=" + ok);
+        Banner.show(ok ? what : what + "：入口不可用");
     }
 
     /**
@@ -183,24 +291,9 @@ final class Hotkeys {
             // ---- TASK 6：微信功能入口（都"吞键"，否则那个字母会跟着上屏）----
             case VOICE_INPUT:
             case EMOJI:
-            case CLIPBOARD: {
-                if (down && ev.getRepeatCount() == 0) {
-                    final boolean ok;
-                    final String what;
-                    if (a == HotkeyAction.VOICE_INPUT) {
-                        what = "语音输入";
-                        ok = WeTypeInternals.fireFunction(WeTypeInternals.FN_VOICE);
-                    } else if (a == HotkeyAction.EMOJI) {
-                        what = "表情";
-                        ok = WeTypeInternals.fireFunction(WeTypeInternals.FN_EMOJI);
-                    } else {
-                        what = "剪贴板 / 常用语";
-                        ok = WeTypeInternals.openClipboardPanel();
-                    }
-                    Log.i(TAG, "hotkey " + a.id + " -> " + what + " ok=" + ok);
-                    Banner.show(ok ? what : what + "：入口不可用");
-                    if (ok) showSelfSoon(what);
-                }
+            case CLIPBOARD:
+            case PHRASE: {
+                if (down && ev.getRepeatCount() == 0) runPanelAction(a);
                 return true;
             }
             // ---- 未来的动作在这里加分支（对应 HotkeyAction 里的条目）----

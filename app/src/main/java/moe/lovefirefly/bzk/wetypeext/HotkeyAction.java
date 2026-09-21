@@ -35,8 +35,11 @@ enum HotkeyAction {
     /** 表情面板（{@code id=emoji}，函数码 22）。默认 Alt+; */
     EMOJI("emoji", "表情面板", KeyEvent.KEYCODE_SEMICOLON, false, false, true),
 
-    /** 常用语 / 剪贴板面板（没有函数码，走面板切换）。默认 Alt+V。 */
-    CLIPBOARD("clipboard", "剪贴板 / 常用语", KeyEvent.KEYCODE_V, false, false, true),
+    /** 剪贴板面板（没有函数码，走面板切换 + `target_tab_index=0`）。默认 Alt+V。 */
+    CLIPBOARD("clipboard", "剪贴板", KeyEvent.KEYCODE_V, false, false, true),
+
+    /** 常用语面板（同一个面板的第 1 个页签，`target_tab_index=1`）。默认 Alt+Shift+V。 */
+    PHRASE("phrase", "常用语", KeyEvent.KEYCODE_V, true, false, true),
     ;
 
     /** 配置里的稳定 id（**不要改**，改了用户配置就失效）。 */
