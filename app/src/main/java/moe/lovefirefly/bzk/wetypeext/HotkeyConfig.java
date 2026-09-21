@@ -82,11 +82,54 @@ final class HotkeyConfig {
         return sb.toString();
     }
 
+    /**
+     * 键名显示（用户口径）：**能打出字符的键就显示那个字符** ——
+     * 空格 = {@code Space}、句号 = {@code .}、分号 = {@code ;}、逗号 = {@code ,} …
+     * 而不是 {@code SPACE}/{@code PERIOD}/{@code SEMICOLON} 这种 Android 键码名。
+     */
     private static String keyName(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_SPACE: return "Space";
+            case KeyEvent.KEYCODE_PERIOD: return ".";
+            case KeyEvent.KEYCODE_COMMA: return ",";
+            case KeyEvent.KEYCODE_SEMICOLON: return ";";
+            case KeyEvent.KEYCODE_APOSTROPHE: return "'";
+            case KeyEvent.KEYCODE_SLASH: return "/";
+            case KeyEvent.KEYCODE_BACKSLASH: return "\\";
+            case KeyEvent.KEYCODE_LEFT_BRACKET: return "[";
+            case KeyEvent.KEYCODE_RIGHT_BRACKET: return "]";
+            case KeyEvent.KEYCODE_MINUS: return "-";
+            case KeyEvent.KEYCODE_EQUALS: return "=";
+            case KeyEvent.KEYCODE_GRAVE: return "`";
+            case KeyEvent.KEYCODE_ENTER: return "Enter";
+            case KeyEvent.KEYCODE_TAB: return "Tab";
+            case KeyEvent.KEYCODE_ESCAPE: return "Esc";
+            case KeyEvent.KEYCODE_DEL: return "Backspace";
+            case KeyEvent.KEYCODE_FORWARD_DEL: return "Delete";
+            case KeyEvent.KEYCODE_DPAD_LEFT: return "←";
+            case KeyEvent.KEYCODE_DPAD_RIGHT: return "→";
+            case KeyEvent.KEYCODE_DPAD_UP: return "↑";
+            case KeyEvent.KEYCODE_DPAD_DOWN: return "↓";
+            case KeyEvent.KEYCODE_PAGE_UP: return "PageUp";
+            case KeyEvent.KEYCODE_PAGE_DOWN: return "PageDown";
+            case KeyEvent.KEYCODE_MOVE_HOME: return "Home";
+            case KeyEvent.KEYCODE_MOVE_END: return "End";
+            default: break;
+        }
+        if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9) {
+            return String.valueOf(keyCode - KeyEvent.KEYCODE_0);   // 0..9
+        }
         try {
             String n = KeyEvent.keyCodeToString(keyCode);
             if (n.startsWith("KEYCODE_")) n = n.substring("KEYCODE_".length());
-            return n;
+            // 兜底也友好点：SOME_NAME → SomeName
+            final StringBuilder sb = new StringBuilder();
+            for (String part : n.split("_")) {
+                if (part.isEmpty()) continue;
+                sb.append(Character.toUpperCase(part.charAt(0)))
+                  .append(part.substring(1).toLowerCase());
+            }
+            return sb.length() == 0 ? ("Key" + keyCode) : sb.toString();
         } catch (Throwable tr) {
             return "Key" + keyCode;
         }

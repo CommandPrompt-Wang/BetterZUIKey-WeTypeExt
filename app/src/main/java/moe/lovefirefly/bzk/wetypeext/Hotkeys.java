@@ -225,7 +225,10 @@ final class Hotkeys {
             ok = WeTypeInternals.openClipboardPanel(0);
         }
         Log.i(TAG, "hotkey " + a.id + " -> " + what + " ok=" + ok);
-        Banner.show(ok ? what : what + "：入口不可用");
+        // 这四个动作本身就会弹出可见窗口 ⇒ 成功时不弹提示（用户口径：
+        // 全角/中英标点要弹是因为它们的效果不是立即可见）；
+        // 只有"入口不可用"这种失败才提示一下。
+        if (!ok) Banner.show(what + "：入口不可用");
     }
 
     /**
