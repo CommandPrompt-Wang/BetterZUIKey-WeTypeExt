@@ -103,6 +103,16 @@ public class MainActivity extends Activity {
                         + "快捷键可在下面的「快捷键」区改。关掉这个门 = 完全恢复原生（Shift+Space 也不吞，空格照常）。",
                 ExtConfig.KEY_FULLWIDTH_FEATURE, cfg.fullwidthFeature);
 
+        addSpinner(root, "原样输出斜杠",
+                "微信原生把物理键盘的 / 和 \\ 都打成「、」。这里挑一个键原样输出"
+                        + "（对齐搜狗 OEM Ext 的同名设置）：\n"
+                        + "关 = 保持原生（两个键都出 、）；选「原样输出 /」= 按 / 出 /，按 \\ 仍出 、"
+                        + "（反之亦然）。\n"
+                        + "命中的那一格不再走「中英标点」层；全角态下它照样会被全角化（/ → ／）。",
+                ExtConfig.KEY_SLASH_MODE,
+                new String[]{"关", "原样输出 /", "原样输出 \\"},
+                new int[]{0, 1, 2}, ExtConfig.DEF_SLASH_MODE);
+
         addSwitch(root, "括号/引号自动配对",
                 "微信原生行为（做得不错，建议保持打开）：打 （ 自动补出 （） 并把光标放中间；"
                         + "选中文字后打 （ 会自动用括号包起来。\n"
@@ -412,6 +422,53 @@ public class MainActivity extends Activity {
             stateReceiver = null;
         }
         super.onDestroy();
+    }
+
+    /**
+     * 一行「标签 + 下拉框」（多态设置用，例如「原样输出斜杠」三态）。
+     *
+     * <p>对齐隔壁：搜狗 OEM Ext 那边就是个下拉（MaterialAutoCompleteTextView），这里用原生
+     * {@link android.widget.Spinner}，语义一样 —— 选完立刻生效并广播，不写死成按钮弹窗。
+     */
+    private void addSpinner(LinearLayout root, String title, String desc, final String key,
+            final String[] labels, final int[] values, final int defValue) {
+        final LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(0, dp(8), 0, dp(8));
+        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
+        final TextView label = new TextView(this);
+        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        label.setText(title);
+        label.setLayoutParams(new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(label);
+
+        final android.widget.Spinner sp = new android.widget.Spinner(this);
+        final android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sp.setAdapter(adapter);
+        final int cur = prefs.getInt(key, defValue);
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] == cur) sp.setSelection(i, false);
+        }
+        sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent,
+                    android.view.View view, int position, long id) {
+                if (prefs.getInt(key, defValue) == values[position]) return;   // 初始化那次别回写
+                prefs.edit().putInt(key, values[position]).apply();
+                ConfigSender.send(MainActivity.this, prefs);
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+            }
+        });
+        row.addView(sp);
+        root.addView(row);
+        addHint(root, desc);
     }
 
     private Switch addSwitch(LinearLayout root, String title, String desc,

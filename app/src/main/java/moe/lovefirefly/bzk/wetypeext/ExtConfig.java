@@ -40,6 +40,8 @@ final class ExtConfig {
     static final String KEY_CLOSE_SKIP = "closeSkip";
     /** Shift 切换修复（见 {@link ShiftFix}）。 */
     static final String KEY_SHIFT_FIX = "shiftSwitchFix";
+    /** 「原样输出斜杠」：0=关（/ 与 \ 都出 、）1=按 / 出 / 2=按 \ 出 \ —— 对齐搜狗。 */
+    static final String KEY_SLASH_MODE = "slashMode";
     /** 可配置快捷键（格式见 {@link HotkeyConfig}；空 = 用默认值）。 */
     static final String KEY_HOTKEYS = "hotkeys";
 
@@ -87,6 +89,8 @@ final class ExtConfig {
      * {@code isShiftKeyEventConsumed}，方向键等路径会漏 ⇒ 松开 Shift 就切了语言。默认开。
      */
     static final boolean DEF_SHIFT_FIX = true;
+    /** 原样输出斜杠：默认<b>关</b>（保持微信原生：/ 与 \ 都出 、）。 */
+    static final int DEF_SLASH_MODE = 0;
 
     /** 英文键盘不显示候选/联想（两种都去：打字过程中的补全 + 上屏后的下一个词）。 */
     final boolean enNoSuggest;
@@ -137,6 +141,9 @@ final class ExtConfig {
     /** Shift 组合键之后松开 Shift 不切语言。 */
     final boolean shiftSwitchFix;
 
+    /** 原样输出斜杠：0=关 1=/ 2=\ 。 */
+    final int slashMode;
+
     /** 快捷键配置串（空 = 全默认）。 */
     final String hotkeys;
 
@@ -144,7 +151,7 @@ final class ExtConfig {
             boolean syncBackToFramework, boolean strictFrameworkOnly,
             boolean shiftPassThrough, boolean smartNumber,
             boolean fullwidthFeature, boolean enPunctFeature, boolean autoPair,
-            boolean closeSkip, boolean shiftSwitchFix, String hotkeys) {
+            boolean closeSkip, boolean shiftSwitchFix, int slashMode, String hotkeys) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
@@ -157,6 +164,7 @@ final class ExtConfig {
         this.autoPair = autoPair;
         this.closeSkip = closeSkip;
         this.shiftSwitchFix = shiftSwitchFix;
+        this.slashMode = slashMode;
         this.hotkeys = hotkeys == null ? "" : hotkeys;
     }
 
@@ -164,7 +172,7 @@ final class ExtConfig {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
                 DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER,
                 DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT_FEATURE, DEF_AUTO_PAIR,
-                DEF_CLOSE_SKIP, DEF_SHIFT_FIX, "");
+                DEF_CLOSE_SKIP, DEF_SHIFT_FIX, DEF_SLASH_MODE, "");
     }
 
     static ExtConfig load(SharedPreferences sp) {
@@ -184,6 +192,7 @@ final class ExtConfig {
                             : DEF_AUTO_PAIR,
                     sp.getBoolean(KEY_CLOSE_SKIP, DEF_CLOSE_SKIP),
                     sp.getBoolean(KEY_SHIFT_FIX, DEF_SHIFT_FIX),
+                    sp.getInt(KEY_SLASH_MODE, DEF_SLASH_MODE),
                     sp.getString(KEY_HOTKEYS, ""));
         } catch (Throwable tr) {
             return defaults();
@@ -219,6 +228,7 @@ final class ExtConfig {
                     .putBoolean(KEY_AUTO_PAIR, c.autoPair)
                     .putBoolean(KEY_CLOSE_SKIP, c.closeSkip)
                     .putBoolean(KEY_SHIFT_FIX, c.shiftSwitchFix)
+                    .putInt(KEY_SLASH_MODE, c.slashMode)
                     .putString(KEY_HOTKEYS, c.hotkeys)
                     .apply();
         } catch (Throwable tr) {
@@ -239,6 +249,7 @@ final class ExtConfig {
                 + "-ap" + (autoPair ? 1 : 0)
                 + "-cs" + (closeSkip ? 1 : 0)
                 + "-sf" + (shiftSwitchFix ? 1 : 0)
+                + "-sl" + slashMode
                 + "-hk" + hotkeys.hashCode();
     }
 
@@ -253,7 +264,7 @@ final class ExtConfig {
                 + " smartNumber=" + smartNumber
                 + " fullwidthFeature=" + fullwidthFeature + " enPunctFeature=" + enPunctFeature
                 + " autoPair=" + autoPair + " closeSkip=" + closeSkip
-                + " shiftFix=" + shiftSwitchFix
+                + " shiftFix=" + shiftSwitchFix + " slashMode=" + slashMode
                 + " hotkeys=" + hotkeys;
     }
 

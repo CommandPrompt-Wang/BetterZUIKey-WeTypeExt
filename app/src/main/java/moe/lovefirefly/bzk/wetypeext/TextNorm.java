@@ -8,7 +8,8 @@ import android.view.inputmethod.InputConnection;
  * <p>挂点在 {@link CommitHook}（框架 IC 的 {@code commitText}）。处理顺序与隔壁 gb 组件一致：
  * <pre>
  *   ① 智能编号（仅物理键盘）      1。 → 1.、1） → 1)
- *   ② 中英标点（功能门 && 状态位）  切到"英文标点"时：，。！？… → ,.!?…
+ *   ② 原样输出斜杠（三态）         / 或 \ 是否原样输出（不填则都出 、）
+ *   ②.5 中英标点（功能门 && 状态位） 切到"英文标点"时：，。！？… → ,.!?…
  *   ③ 全角模式（功能门 && 状态位）  开 = ASCII 符号转全角；
  *                                 关（默认）= **什么都不做**（微信自己的符号本来就是半角）
  * </pre>
@@ -83,8 +84,22 @@ final class TextNorm {
         final String n1 = smartNumber(s, ic, lastShown);
         if (n1 != null) s = n1;
 
-        // ② 中英标点（状态位，Ctrl+. 切）：切到"英文标点"时，中文标点落成 ASCII
-        if (ExtConfig.get().enPunctFeature && PunctState.enPunct()) {
+        // ② 原样输出斜杠（对齐搜狗 OEM Ext 的「原样输出斜杠」三态）：
+        //    0=关（微信原样：/ 与 \ 都出 、）   1=按 / 出 /     2=按 \ 出 \
+        //    命中时**跳过下面的中英标点层**（搜狗同款：这一格交给斜杠规则管）。
+        boolean slashHandled = false;
+        final int slashMode = ExtConfig.get().slashMode;
+        if (slashMode != 0 && s.indexOf('、') >= 0) {
+            final char want = (slashMode == 1) ? '/' : '\\';
+            slashHandled = true;
+            if (InputSource.lastKeyChar() == want) {
+                s = s.replace("、", want == '\\' ? "\\" : "/");
+            }
+            // 另一个斜杠键：保持 、
+        }
+
+        // ②.5 中英标点（状态位，Ctrl+. 切）：切到"英文标点"时，中文标点落成 ASCII
+        if (!slashHandled && ExtConfig.get().enPunctFeature && PunctState.enPunct()) {
             final String n2 = toAsciiPunct(s);
             if (n2 != null) s = n2;
         }
