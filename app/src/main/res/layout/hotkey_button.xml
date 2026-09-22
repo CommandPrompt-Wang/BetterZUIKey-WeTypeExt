@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  快捷键那一行的「设置」按钮：主题色文字、无底色 —— M3 TextButton，视觉上像超链接。
+
+  为什么走 XML：Material 1.10.0 只提供 materialButtonStyle / materialButtonOutlinedStyle
+  两个 attr，TextButton 没有对应 attr，没法在 new MaterialButton(ctx, null, attr) 里选中它，
+  只能靠 style 属性从布局里 inflate。
+-->
+<com.google.android.material.button.MaterialButton
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Widget.Material3.Button.TextButton"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minWidth="0dp"
+    android:insetTop="0dp"
+    android:insetBottom="0dp"
+    android:textAllCaps="false" />

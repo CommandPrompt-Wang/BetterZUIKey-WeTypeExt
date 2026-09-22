@@ -37,6 +37,21 @@ final class BroadcastConfig {
     /** App 侧请求"把当前状态位回传一次"（设置页每次打开都要）。 */
     static final String EXTRA_WANT_STATE = "wantState";
 
+    /**
+     * App → 模块：状态位的<b>期望值 + 序号</b>（设置页长按那一行切全半角 / 中英标点）。
+     *
+     * <p>为什么不是「一次性设成 X」：状态位住在微信进程里，App 物理上写不到；而微信进程可能
+     * 当时根本没在跑，一次性广播就石沉大海了。所以改成期望值随<b>每一条配置</b>一起发，
+     * 模块什么时候活着什么时候套用。
+     *
+     * <p>为什么还要序号：App 每次进设置页都会把完整配置推一遍，若无条件套用期望值，
+     * 就会把用户刚在输入法里用热键（Shift+Space / Ctrl+.）切好的状态覆盖掉。
+     * 只有序号比上次套用过的更大才采纳 —— 与搜狗的 want 模型同义。
+     */
+    static final String EXTRA_WANT_FULLWIDTH = "wantFullwidth";
+    static final String EXTRA_WANT_EN_PUNCT = "wantEnPunct";
+    static final String EXTRA_WANT_SEQ = "wantSeq";
+
     // ---- 开发期调试通道（只在本进程里生效，正式用途别用）----
     /** 切到某个面板（如 501 = 常用语/剪贴板、504 = 表情），切完打 View 树。 */
     static final String EXTRA_DBG_PANEL = "dbgPanel";
@@ -109,9 +124,21 @@ final class BroadcastConfig {
                     ExtConfig.set(cfg);
                     ExtConfig.persist(c == null ? ctx : c, cfg);
                     Log.i(TAG, "config broadcast -> " + cfg);
+                    // 设置页长按切的状态位：序号比上次套用过的更大才采纳（见 EXTRA_WANT_SEQ 的注释）。
+                    // 微信进程当时没跑的话这条广播本来就收不到，但它会随下一次配置再来一遍。
+                    final long wantSeq = intent.getLongExtra(EXTRA_WANT_SEQ, 0L);
+                    final Context cc = c == null ? ctx : c;
+                    if (wantSeq > PunctState.appliedSeq(cc)) {
+                        PunctState.setFullwidth(cc,
+                                intent.getBooleanExtra(EXTRA_WANT_FULLWIDTH, false));
+                        PunctState.setEnPunct(cc,
+                                intent.getBooleanExtra(EXTRA_WANT_EN_PUNCT, false));
+                        PunctState.markAppliedSeq(cc, wantSeq);
+                        Log.i(TAG, "want applied seq=" + wantSeq);
+                    }
                     // 设置页要当前状态位：回传一次（全角/半角、中文标点/英文标点）
                     if (intent.getBooleanExtra(EXTRA_WANT_STATE, false)) {
-                        PunctState.mirrorNow(c == null ? ctx : c);
+                        PunctState.mirrorNow(cc);
                     }
                     // 开发期调试：切面板 / 跑函数码 / 打 View 树（默认关，见 DEV_DEBUG_CHANNEL）
                     if (BridgeHook.DEV_DEBUG_CHANNEL) {

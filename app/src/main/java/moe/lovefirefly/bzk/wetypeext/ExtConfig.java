@@ -26,10 +26,34 @@ final class ExtConfig {
     static final String STATE_PREFS = "wetypeext_state";
 
     static final String KEY_EN_NO_SUGGEST = "enNoSuggest";
+    /**
+     * 正向：让框架 subtype 驱动微信内部的中英切换。
+     *
+     * <p>⚠️ 2026-09-22 用户口径：<b>这是固定行为，不给开关</b> —— 「把 subtype 暴露给框架」
+     * 本身就是无条件做的，那"响应框架消息"自然也没什么可配的（搜狗那边同样只有严格模式一个开关）。
+     * 键名保留只为兼容旧 prefs。
+     *
+     * <p>恒为 true（见 {@link #subtypeTranslate}）；键名保留只为兼容旧 prefs。
+     */
     static final String KEY_TRANSLATE = "subtypeTranslate";
+    /**
+     * 进输入框时按框架 subtype 对齐一次（"框架优先"）。
+     *
+     * <p>⚠️ 同上：<b>固定行为，不给开关</b>。冷启动时框架<b>不会</b>主动把 subtype 告诉 IME
+     * （见 {@link ServiceProbe} 里那段注释），只能自己读；少了这一步，微信会以中文起来、
+     * 而框架以为还是上次那门语言，两边直接脱节。
+     *
+     * <p>恒为 true（见 {@link #subtypeStrictOnStart}）；键名保留只为兼容旧 prefs。
+     */
     static final String KEY_TRANSLATE_ON_START = "subtypeStrictOnStart";
-    /** @deprecated 已并入严格模式（{@code syncBack = !strict}），只为兼容旧的 App prefs 保留键名。 */
+    /** 已并入严格模式（{@code syncBack = !strict}），只为兼容旧的 App prefs 保留键名。 */
     static final String KEY_SYNC_BACK = "syncBackToFramework";
+    /**
+     * <b>语言部分唯一保留下来的开关</b>：严格模式（只认系统语言）。
+     *
+     * <p>回答的是唯一一个真正需要用户决定的问题：<b>微信能不能自己切语言</b>。
+     * 其余两件事（暴露 subtype、响应框架消息）都是固定行为，见上面两条。
+     */
     static final String KEY_STRICT = "strictFrameworkOnly";
     static final String KEY_SHIFT_PASSTHRU = "shiftPassThrough";
     static final String KEY_SMART_NUMBER = "smartNumber";
@@ -46,12 +70,25 @@ final class ExtConfig {
     /** 可配置快捷键（格式见 {@link HotkeyConfig}；空 = 用默认值）。 */
     static final String KEY_HOTKEYS = "hotkeys";
 
+    /**
+     * 「状态位期望值」+ 序号（设置页长按那一行切全半角/中英标点用）。
+     *
+     * <p>这几个<b>不是本模型的一部分</b> —— 它们描述「用户想要的状态位」，由模块择机套用
+     * （状态位本身住在微信进程里，App 写不到）。期望值随每条配置一起发；序号用来防止
+     * 把用户刚在输入法里用热键切好的状态覆盖掉，语义见 {@link BroadcastConfig#EXTRA_WANT_SEQ}。
+     */
+    static final String KEY_WANT_FULLWIDTH = "wantFullwidth";
+    static final String KEY_WANT_EN_PUNCT = "wantEnPunct";
+    static final String KEY_WANT_SEQ = "wantSeq";
+
     // 默认值（界面、发送方、模块侧三处必须一致，否则会出现"界面显示开、实际是关"）
     static final boolean DEF_EN_NO_SUGGEST = true;
+    /** 固定行为，不再可配（键名只为兼容旧 prefs）。 */
     static final boolean DEF_TRANSLATE = true;
+    /** 固定行为，不再可配（键名只为兼容旧 prefs）。 */
     static final boolean DEF_TRANSLATE_ON_START = true;
     static final boolean DEF_SYNC_BACK = true;   // 仅旧配置兼容用，见 syncBackToFramework
-    /** 严格模式：语言只由系统框架决定。默认<b>关</b>（开了之后微信自己的 Ctrl+Shift 就不好使了）。 */
+    /** 唯一的语言开关默认值：严格模式默认<b>关</b>（开了之后微信自己的 Ctrl+Shift 就不好使了）。 */
     static final boolean DEF_STRICT = false;
     /** Shift 键放行（TASK 5）：见 {@link ShiftPassthrough}。默认开。 */
     static final boolean DEF_SHIFT_PASSTHRU = true;
@@ -96,12 +133,19 @@ final class ExtConfig {
     /** 英文键盘不显示候选/联想（两种都去：打字过程中的补全 + 上屏后的下一个词）。 */
     final boolean enNoSuggest;
 
-    /** 让框架 subtype 驱动微信的中英切换。 */
+    /**
+     * 让框架 subtype 驱动微信的中英切换。
+     *
+     * <p><b>恒为 true（固定行为，不再可配）</b>：把 subtype 暴露给框架本身就是无条件做的，
+     * 那"响应框架子类型变化"也没有关掉的道理。
+     */
     final boolean subtypeTranslate;
 
     /**
      * 每次进入输入框都按框架 subtype 对齐一次（"框架优先"）。
-     * 关掉 = 只在框架 subtype 真正变化的时刻切。
+     *
+     * <p><b>恒为 true（固定行为，不再可配）</b>：冷启动时框架不会主动告诉 IME 当前 subtype，
+     * 只能自己读，否则微信会以中文起来而框架以为还是上次那门语言。
      */
     final boolean subtypeStrictOnStart;
 
@@ -122,7 +166,7 @@ final class ExtConfig {
      */
     final boolean syncBackToFramework;
 
-    /** 严格模式：拒绝微信自己切语言，只认框架 subtype。 */
+    /** 严格模式：拒绝微信自己切语言，只认框架 subtype。语言部分唯一的开关。 */
     final boolean strictFrameworkOnly;
 
     /** Shift 键放行：微信不再独占 Shift，宿主恢复修饰键跟踪（原生 Shift+方向键扩选）。 */
@@ -186,8 +230,9 @@ final class ExtConfig {
         try {
             return new ExtConfig(
                     sp.getBoolean(KEY_EN_NO_SUGGEST, DEF_EN_NO_SUGGEST),
-                    sp.getBoolean(KEY_TRANSLATE, DEF_TRANSLATE),
-                    sp.getBoolean(KEY_TRANSLATE_ON_START, DEF_TRANSLATE_ON_START),
+                    // 前两个是固定行为，不再从 prefs 读（旧键留着只为兼容，见 KEY_TRANSLATE）
+                    true,                                   // subtypeTranslate
+                    true,                                   // subtypeStrictOnStart
                     sp.getBoolean(KEY_STRICT, DEF_STRICT),
                     sp.getBoolean(KEY_SHIFT_PASSTHRU, DEF_SHIFT_PASSTHRU),
                     sp.getBoolean(KEY_SMART_NUMBER, DEF_SMART_NUMBER),

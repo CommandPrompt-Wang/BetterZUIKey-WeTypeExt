@@ -1,178 +1,231 @@
 package moe.lovefirefly.bzk.wetypeext;
 
-import android.app.Activity;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.view.KeyEvent;
 import android.util.TypedValue;
+import android.view.Gravity;
+import android.view.KeyEvent;
+import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CompoundButton;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Switch;
 import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputLayout;
 
 /**
  * 设置页：三个开关，改完即生效（走 {@link ConfigSender} 的显式广播，不用重启微信进程）。
  *
  * <p>每次进入页面都补发一条配置：接收器只在微信进程活着时存在，微信没跑时广播会丢。
  */
-public class MainActivity extends Activity {
+public class MainActivity extends AppCompatActivity {
+
+    /** BetterZUIKey 主程序包名（清单里已声明 queries，不受 Android 11 包可见性过滤影响）。 */
+    private static final String BZK_PKG = "moe.lovefirefly.betterzuikey";
+
+    /** 本模块服务的输入法（微信输入法）包名；用于判断它当前是不是生效的输入法。 */
+    private static final String TARGET_IME_PKG = "com.tencent.wetype";
 
     private SharedPreferences prefs;
 
-    /** 「全角模式 / 中英文标点」两行的状态显示（由模块回传的镜像广播刷新）。 */
-    private Switch fullwidthSwitch;
-    private Switch enPunctSwitch;
+    /** 边距基准（16dp）：卡片圆角 / 描边 / 内边距都从它换算，和隔壁搜狗增强一致。 */
+    private int pad;
+
+    /**
+     * 「全角模式 / 中英文标点」两行说明里那行「当前状态：xx」（由模块回传的镜像广播刷新）。
+     *
+     * <p>状态原来是拼在<b>行标题</b>里的（「全角模式（当前：全角）」），现在挪到说明的最后一行。
+     * {@code ...Base} 是说明里不随状态变化的前半段。
+     */
+    private TextView fullwidthHint;
+    private TextView enPunctHint;
+    private String fullwidthHintBase;
+    private String enPunctHintBase;
+
+    /** 右下角「刷新状态」悬浮键 + 它那个会转的图标（进页面和点击都要转）。 */
+    private com.google.android.material.floatingactionbutton.FloatingActionButton refreshFab;
+    private android.graphics.drawable.RotateDrawable refreshSpinIcon;
+    /** 动画进行中：忽略连点，也免得进页面那次和点击撞在一起。 */
+    private boolean refreshSpinning;
     /** 最近一次从模块拿到的状态位；null = 还没收到。 */
     private Boolean stateFullwidth;
     private Boolean stateEnPunct;
     private android.content.BroadcastReceiver stateReceiver;
 
     /** 快捷键区：每个动作一行 = 左标签 + 右组合键按钮（点按钮开弹窗改键）。 */
-    private final java.util.Map<HotkeyAction, android.widget.Button> hotkeyButtons =
+    private final java.util.Map<HotkeyAction, MaterialButton> hotkeyButtons =
             new java.util.EnumMap<>(HotkeyAction.class);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        pad = dp(16);
         prefs = getSharedPreferences(ExtConfig.APP_PREFS, MODE_PRIVATE);
         final ExtConfig cfg = ExtConfig.load(prefs);
 
         final LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        final int pad = dp(20);
-        root.setPadding(pad, pad, pad, pad);
+        root.setPadding(pad * 2, 0, pad * 2, pad * 2);
 
-        addTitle(root, "微信输入法增强");
-        addHint(root, "目标：把中/英语言暴露给系统框架，并只在英文键盘关闭联想。\n"
-                + "LSPosed 作用域只需勾「微信输入法」，不需要系统框架。");
+        addPageTitle(root, "微信输入法增强");
 
-        addSwitch(root, "英文键盘不显示联想/补全",
-                "英文键盘下清空候选栏：既不出现打字过程中的补全（hello → hellokitty），"
-                        + "也不出现上屏一个词之后的下一个词。中文键盘完全不受影响。",
-                ExtConfig.KEY_EN_NO_SUGGEST, cfg.enNoSuggest);
+        // 排列顺序对齐「搜狗增强」：按处理管线分组，而不是按开发先后堆。
+        //   ① 语言  ② 标点（语义层 → 状态位）  ③ 输入行为  ④ 配对  ⑤ 键盘行为  ⑥ 快捷键
+        // 同类的挨在一起；两个 Shift 项原来被隔在首尾，现在并排。
 
-        addSwitch(root, "跟随系统语言切换",
-                "把框架的 input subtype 变化翻成微信内部的中英切换，"
-                        + "这样系统 / BetterZUIKey 的语言切换才能真正带动微信输入法。",
-                ExtConfig.KEY_TRANSLATE, cfg.subtypeTranslate);
+        // ── ① 语言 ──
+        // 开关从三个并成一个（「跟随系统语言切换」「严格跟随系统语言」变成固定行为，见 ExtConfig）。
+        // 剩下这一个也不是谁都该开：它拦掉微信自己的切语言，语言就只能靠框架推过来，
+        // 而框架侧的轮转正是 BZK 在做 —— 所以没装 BZK 时灰掉并换一套提示（文案/行为对齐搜狗）。
+        final boolean hasBzk = hasBetterZUIKey();
+        addSwitch(root, "只响应系统框架语言切换消息",
+                hasBzk
+                        ? "检测到BetterZUIKey，建议在它的“输入法增强”中为“微信输入法”"
+                          + "启用“framework”模式，然后打开此开关，"
+                          + "以让BetterZUIKey完全接管此选项"
+                        : "未检测到BetterZUIKey，建议安装以增强功能",
+                ExtConfig.KEY_STRICT, cfg.strictFrameworkOnly, hasBzk);
 
-        addSwitch(root, "严格跟随系统语言",
-                "开：每次进入输入框都按系统语言对齐一次（在微信里手动切到英文，换个输入框会被拉回）；"
-                        + "关：只响应系统语言真正变化的时刻。",
-                ExtConfig.KEY_TRANSLATE_ON_START, cfg.subtypeStrictOnStart);
-
-        addSwitch(root, "只认系统语言（严格模式）",
-                "开：拒绝微信自己切语言（Ctrl+Shift / 工具栏中英键），语言只跟着系统走；"
-                        + "此时不需要「回写」（它压根切不了）。\n"
-                        + "关（默认）：微信里怎么切都行，切完模块把系统那边的语言状态回写成一致，"
-                        + "免得系统 / BetterZUIKey 看到的语言和实际脱节。\n"
-                        + "不会拦按键：我们拦的是微信已经判定为「切语言」的那个动作，"
-                        + "所以 Ctrl+Shift+P 这类组合键不受影响；符号/数字/手写面板也照常能开。\n"
-                        + "注意：打开后 Ctrl+Shift 不再切语言（这正是严格模式的意思）。",
-                ExtConfig.KEY_STRICT, cfg.strictFrameworkOnly);
-
-        addSwitch(root, "Shift 键放行（修物理键盘扩选）",
-                "微信在硬件键盘模式下会独占 Shift 按下，导致原生输入框以为「没按 Shift」，"
-                        + "Shift+方向键退化成普通移动。打开后微信不再独占 Shift（它自己的切语言逻辑不受影响），"
-                        + "原生的逐字/按词扩选恢复正常。\n"
-                        + "网页输入框本来就不受影响；若某个 App 对单独的 Shift 有反应，把它关掉即可。",
-                ExtConfig.KEY_SHIFT_PASSTHRU, cfg.shiftPassThrough);
-
-        addSwitch(root, "智能编号（数字后用半角标点）",
-                "数字后面的中文标点自动用半角：1。 → 1.、1） → 1)。"
-                        + "判据是「末字符是 。/） 且它前面是数字」，一起上屏或分两次上屏都能命中。",
-                ExtConfig.KEY_SMART_NUMBER, cfg.smartNumber);
-
-        enPunctSwitch = addSwitch(root, "中英文标点",
-                "允许中文模式下在中英标点之间切换（对齐搜狗/gb 的做法，不是「一律用英文标点」的大开关）："
-                        + "物理键盘按 Ctrl+. 切换状态位，切到「英文标点」时中文标点落成 ASCII"
-                        + "（，→, 。→. ！→! ？→? ；→; ：→: （）→() 【】→[] “”→\"\" ‘'→''）。\n"
-                        + "快捷键可在下面的「快捷键」区改。关掉这个门 = 恢复原生（Ctrl+. 也不吞）。",
-                ExtConfig.KEY_EN_PUNCT_FEATURE, cfg.enPunctFeature);
-
-        fullwidthSwitch = addSwitch(root, "全角模式",
-                "允许在全角/半角之间切换：物理键盘按 Shift+Space 切状态位，"
-                        + "状态为「全角」时把 ASCII **符号**转全角（只动符号，不动字母数字，免得拼音/英文被全角化）。\n"
-                        + "快捷键可在下面的「快捷键」区改。关掉这个门 = 完全恢复原生（Shift+Space 也不吞，空格照常）。",
-                ExtConfig.KEY_FULLWIDTH_FEATURE, cfg.fullwidthFeature);
-
-        addSpinner(root, "原样输出斜杠",
-                "微信原生把物理键盘的 / 和 \\ 都打成「、」。这里挑一个键原样输出"
-                        + "（对齐搜狗 OEM Ext 的同名设置）：\n"
-                        + "关 = 保持原生（两个键都出 、）；选「原样输出 /」= 按 / 出 /，按 \\ 仍出 、"
-                        + "（反之亦然）。\n"
-                        + "命中的那一格不再走「中英标点」层；全角态下它照样会被全角化（/ → ／）。",
+        // ── ② 标点：先语义层（原样输出斜杠），再两个状态位（全角 / 中英标点）──
+        addDropdown(root, "原样输出斜杠",
+                "微信把 / 和 \\ 都输出成 、。在此选择想原样保留的字符。",
                 ExtConfig.KEY_SLASH_MODE,
                 new String[]{"关", "原样输出 /", "原样输出 \\"},
                 new int[]{0, 1, 2}, ExtConfig.DEF_SLASH_MODE);
 
-        addSwitch(root, "括号/引号自动配对",
-                "微信原生行为（做得不错，建议保持打开）：打 （ 自动补出 （） 并把光标放中间；"
-                        + "选中文字后打 （ 会自动用括号包起来。\n"
-                        + "关掉 = 只上屏你打的那一个字符（选中时用该字符替换选区），"
-                        + "在提交层把微信自动补上的那半截拆掉，中文英文、开关即时生效。",
+        fullwidthHintBase = "允许在全角/半角之间切换\n"
+                + "请在下方修改快捷键\n"
+                + "长按标题亦可切换全角/半角状态";
+        fullwidthHint = addSwitchRow(root, "全角模式", fullwidthHintBase + "\n当前状态：?",
+                ExtConfig.KEY_FULLWIDTH_FEATURE, cfg.fullwidthFeature, true,
+                () -> toggleState(true)).hint;
+
+        enPunctHintBase = "允许中文模式下在中英标点之间切换\n"
+                + "请在下方修改快捷键\n"
+                + "长按标题亦可切换中英标点状态";
+        enPunctHint = addSwitchRow(root, "中英文标点", enPunctHintBase + "\n当前状态：?",
+                ExtConfig.KEY_EN_PUNCT_FEATURE, cfg.enPunctFeature, true,
+                () -> toggleState(false)).hint;
+
+        // ── ③ 输入行为：改「打到屏幕上的是什么」的两条 ──
+        addSwitch(root, "智能编号",
+                "数字后面的 。和） 自动用半角 . 和 )，以方便输入 1.  2) 编号格式",
+                ExtConfig.KEY_SMART_NUMBER, cfg.smartNumber);
+
+        addSwitch(root, "关闭英文候选",
+                "英文输入时不显示候选栏和预测。",
+                ExtConfig.KEY_EN_NO_SUGGEST, cfg.enNoSuggest);
+
+        // ── ④ 配对：自动补另一半 + 闭字符跳过 ──
+        addSwitch(root, "引号/括号自动补全",
+                "关闭后输入引号、括号时不再自动关闭。",
                 ExtConfig.KEY_AUTO_PAIR, cfg.autoPair);
 
         addSwitch(root, "跳过已存在的闭合符号",
-                "打 ）、】、” 这类闭字符时，如果光标右边已经就是它（微信刚刚自动补出来的那个），"
-                        + "只把光标移过去、不再多插一个。\n"
-                        + "只认「微信刚补出来的那一个」，不做任何推导 —— 所以不会误伤你自己敲的括号。",
+                "当光标后侧已有闭合符时，只移动光标而不额外产生闭合符。\n"
+                        + "当手动移动光标位置后恢复正常闭合",
                 ExtConfig.KEY_CLOSE_SKIP, cfg.closeSkip);
 
+        // ── ⑤ 键盘行为：两个 Shift 相关的放一起 ──
+        addSwitch(root, "Shift 选区修复",
+                "修复部分文本框 Shift+方向键无法选中文字的问题",
+                ExtConfig.KEY_SHIFT_PASSTHRU, cfg.shiftPassThrough);
+
         addSwitch(root, "Shift 切换修复",
-                "物理键盘上 Shift 参与过组合（Shift+字母打大写、Shift+符号、Shift+方向键扩选）之后，"
-                        + "松开 Shift 不再被误判成「Shift 单击切语言」。\n"
-                        + "微信原版只在「打字符」那条路上打了标记，方向键等路径会漏，于是松开 Shift 就切了语言；"
-                        + "本开关在按键盘这一层把标记补齐。\n"
-                        + "想彻底只认系统语言，再开上面的「严格模式」。",
+                "修复按住 Shift 输入大写字母时意外切换语言的问题",
                 ExtConfig.KEY_SHIFT_FIX, cfg.shiftSwitchFix);
 
+        // ── ⑥ 快捷键 ──
         addHotkeySection(root);
 
-        addHint(root, "\n切换后立即生效，无需重启微信。\n"
-                + "日志标签：BZK-WeTypeExt");
+        addGap(root, 24);
+        addHint(root, "切换后立即生效，无需重启微信。");
 
+        // 内容全部放进 ScrollView；外面再套一层 shell 只为挂 window insets，
+        // 免得把 root 的左右页边距冲掉（applyInsets 会重写 padding）。
         final ScrollView sv = new ScrollView(this);
+        sv.setFillViewport(true);
         sv.addView(root);
-        setContentView(sv);
+
+        // 「刷新状态」：浮在滚动区右下角的 Material FAB（对齐搜狗）。
+        // 点一下 —— 以及每次进页面 —— 都转一圈并重新推一次配置。
+        refreshFab = new com.google.android.material.floatingactionbutton.FloatingActionButton(this);
+        // 只转图标：把图标包进 RotateDrawable，动它的 level（0..10000 映射 0..360°），
+        // 这样 FAB 本体（背景/阴影）保持不动。
+        refreshSpinIcon = new android.graphics.drawable.RotateDrawable();
+        refreshSpinIcon.setDrawable(getResources().getDrawable(android.R.drawable.ic_popup_sync));
+        refreshSpinIcon.setLevel(0);
+        refreshFab.setImageDrawable(refreshSpinIcon);
+        refreshFab.setContentDescription("刷新状态");
+        refreshFab.setTooltipText("刷新状态");
+        // 持久阴影：FAB 本来有默认 elevation，但父层若裁剪就看不出 ⇒ 显式给一层 + 关掉裁剪
+        refreshFab.setCompatElevation(6f * getResources().getDisplayMetrics().density);
+        refreshFab.setOnClickListener(v -> spinRefreshFab());
+
+        // 滚动区 + 悬浮刷新键同放一层 FrameLayout ⇒ 键浮在列表上方，不占布局高度
+        final android.widget.FrameLayout scrollWrap = new android.widget.FrameLayout(this);
+        scrollWrap.setClipChildren(false);        // 别裁掉 FAB 的阴影
+        scrollWrap.addView(sv, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        final android.widget.FrameLayout.LayoutParams refreshLp =
+                new android.widget.FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        refreshLp.gravity = Gravity.BOTTOM | Gravity.END;
+        refreshLp.setMargins(0, 0, pad * 2, pad * 2);
+        scrollWrap.addView(refreshFab, refreshLp);
+
+        final LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.addView(scrollWrap, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(shell);
+        applyInsets(shell);
 
         registerStateReceiver();
 
-        // 进页面补发一次：微信进程当时没跑的话，这条会在它下次起来前一直缺失。
-        // 顺带向模块要一次状态位（全角/半角、中文标点/英文标点）来回填两行的显示。
-        ConfigSender.send(this, prefs);
+        // 进页面的那次「补发配置 + 要一次状态位」在 onResume 里做（顺手让刷新键转一圈）。
+        // onResume 必定跟在 onCreate 后面，所以不会漏发。
     }
 
     /** 「快捷键」区：每行 = 左标签 + 右组合键按钮；点按钮开「设置快捷键」弹窗。 */
     private void addHotkeySection(LinearLayout root) {
-        addTitle(root, "\n快捷键");
-        addHint(root, "点右边的按钮改键：弹窗里直接按组合键（至少要有一个修饰键），"
-                + "退格 = 清除，Esc / 取消 = 放弃，确定 = 保存。");
+        addGap(root, 24);
+        addSectionTitle(root, "快捷键");
+        addHint(root, "在此处修改快捷键");
         for (HotkeyAction a : HotkeyAction.values()) {
             final LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setPadding(0, dp(8), 0, dp(8));
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
 
             final TextView label = new TextView(this);
-            label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-            final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            label.setLayoutParams(lp);
             label.setText(a.label);
-            row.addView(label);
+            label.setTextAppearance(com.google.android.material.R.style
+                    .TextAppearance_Material3_BodyLarge);
+            label.setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface));
+            row.addView(label, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-            final android.widget.Button btn = new android.widget.Button(this);
+            // 主题色文字、无底色（M3 TextButton，像超链接）。样式没有对应的 attr，
+            // 只能从布局里 inflate（见 res/layout/hotkey_button.xml）。
+            final MaterialButton btn = (MaterialButton) android.view.LayoutInflater.from(this)
+                    .inflate(R.layout.hotkey_button, row, false);
             btn.setAllCaps(false);          // Android 默认给按钮文本 toUpperCase，这里要原样
             btn.setOnClickListener(v -> openHotkeyDialog(a));
             hotkeyButtons.put(a, btn);
             row.addView(btn);
 
-            root.addView(row);
+            final LinearLayout box = newItemBox(root);
+            box.addView(row);
         }
         refreshHotkeyRows();
     }
@@ -180,7 +233,7 @@ public class MainActivity extends Activity {
     private void refreshHotkeyRows() {
         final java.util.Map<String, int[]> map = HotkeyConfig.parse(
                 prefs.getString(ExtConfig.KEY_HOTKEYS, ""), null);
-        for (java.util.Map.Entry<HotkeyAction, android.widget.Button> e : hotkeyButtons.entrySet()) {
+        for (java.util.Map.Entry<HotkeyAction, MaterialButton> e : hotkeyButtons.entrySet()) {
             final int[] c = HotkeyConfig.comboOf(map, e.getKey());
             e.getValue().setText(HotkeyConfig.describe(c[0], c[1] != 0, c[2] != 0,
                     c.length >= 4 && c[3] != 0));
@@ -200,7 +253,6 @@ public class MainActivity extends Activity {
 
         final LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        final int pad = dp(20);
         box.setPadding(pad, pad / 2, pad, 0);
 
         final TextView hint = new TextView(this);
@@ -247,7 +299,7 @@ public class MainActivity extends Activity {
         field.setLayoutParams(flp);
         box.addView(field);
 
-        final android.app.AlertDialog dlg = new android.app.AlertDialog.Builder(this)
+        final androidx.appcompat.app.AlertDialog dlg = new MaterialAlertDialogBuilder(this)
                 .setTitle("设置快捷键")
                 .setView(box)
                 .setPositiveButton("确定", (d, w) -> applyCombo(a, combo))
@@ -265,7 +317,7 @@ public class MainActivity extends Activity {
         dlg.setOnDismissListener(d -> ConfigSender.sendRecording(this, false));
         dlg.show();
         // 校验没过时**不关弹窗**（默认点按钮就会 dismiss，所以自己接管一下）
-        dlg.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (applyCombo(a, combo)) dlg.dismiss();
         });
         ConfigSender.sendRecording(this, true);
@@ -307,7 +359,7 @@ public class MainActivity extends Activity {
     /** 只提示、不改变任何东西的警告弹窗（校验没过时用，主弹窗保持打开）。 */
     private void warn(String msg) {
         try {
-            new android.app.AlertDialog.Builder(this)
+            new MaterialAlertDialogBuilder(this)
                     .setTitle("警告")
                     .setMessage(msg)
                     .setPositiveButton("确定", null)
@@ -350,7 +402,7 @@ public class MainActivity extends Activity {
     /** 「是 / 否」二选一弹窗。 */
     private void ask(String title, String msg, final Runnable onYes) {
         try {
-            new android.app.AlertDialog.Builder(this)
+            new MaterialAlertDialogBuilder(this)
                     .setTitle(title)
                     .setMessage(msg)
                     .setPositiveButton("是", (d, w) -> onYes.run())
@@ -397,16 +449,121 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** 把"当前：全角/半角、英文标点/中文标点"写回两行标题。 */
+    /** 把「当前状态：全角/半角、英文标点/中文标点」写回两行说明的最后一行。 */
     private void refreshStateText() {
-        if (fullwidthSwitch != null) {
-            fullwidthSwitch.setText("全角模式（当前："
-                    + (stateFullwidth == null ? "?" : (stateFullwidth ? "全角" : "半角")) + "）");
+        final boolean ime = isTargetImeActive();
+        if (fullwidthHint != null) {
+            fullwidthHint.setText(fullwidthHintBase + "\n当前状态："
+                    + stateWord(ime, stateFullwidth, "全角", "半角"));
         }
-        if (enPunctSwitch != null) {
-            enPunctSwitch.setText("中英文标点（当前："
-                    + (stateEnPunct == null ? "?" : (stateEnPunct ? "英文标点" : "中文标点")) + "）");
+        if (enPunctHint != null) {
+            enPunctHint.setText(enPunctHintBase + "\n当前状态："
+                    + stateWord(ime, stateEnPunct, "英文标点", "中文标点"));
         }
+    }
+
+    /**
+     * 状态词。
+     *
+     * <p>当前输入法不是微信输入法时，模块一项都不会生效、状态位也永远拿不回来 ——
+     * 与其一直显示「?」，不如直接说清楚（这是用户口径）。
+     */
+    private static String stateWord(boolean targetImeActive, Boolean state,
+            String onWord, String offWord) {
+        if (!targetImeActive) return "输入法未启用";
+        if (state == null) return "?";
+        return state.booleanValue() ? onWord : offWord;
+    }
+
+    /**
+     * 当前生效的输入法是不是微信输入法。
+     *
+     * <p>{@code Settings.Secure.DEFAULT_INPUT_METHOD} 是公开 secure setting，读它不需要权限
+     * （App 与模块都能读；模块那边走 {@code systemContext()}）。
+     *
+     * <p>读不到时返回 {@code true}：宁可当成"在用"，也不要因为读不到就误报"未启用"。
+     */
+    private boolean isTargetImeActive() {
+        try {
+            final String cur = android.provider.Settings.Secure.getString(
+                    getContentResolver(),
+                    android.provider.Settings.Secure.DEFAULT_INPUT_METHOD);
+            return cur == null || cur.startsWith(TARGET_IME_PKG);
+        } catch (Throwable tr) {
+            return true;
+        }
+    }
+
+    /**
+     * 「刷新状态」：右下角那个键转一圈 + 重新推一次配置。
+     *
+     * <p>点键和<b>进页面</b>（{@link #onResume()}）都走这里 —— 进页面也转一圈，是为了让
+     * 「刚进来就已经自动刷过一次」这件事看得见。
+     *
+     * <p>为什么刷新 = 重新推配置：状态位住在微信进程里，App 读不到 —— 只能借这次推送里的
+     * {@code wantState} 让模块把当前状态镜像回来（收到后 {@link #refreshStateText()} 刷新那两行）。
+     * 顺带把「期望值 + 序号」再发一遍：微信进程上回没在跑的话，这次就补上了。
+     */
+    private void spinRefreshFab() {
+        if (refreshFab == null || refreshSpinning) return;   // 动画期间忽略连点
+
+        // 当前输入法不是微信输入法 ⇒ 模块一项都不生效、状态位也永远要不回来：
+        // 别转了、也别白要状态（但配置照样推，免得设置丢了），把「输入法未启用」写上就完事。
+        if (!isTargetImeActive()) {
+            refreshStateText();
+            ConfigSender.send(this, prefs, false);
+            return;
+        }
+
+        refreshSpinning = true;
+        final android.animation.ObjectAnimator anim =
+                android.animation.ObjectAnimator.ofInt(refreshSpinIcon, "level", 0, 10000);
+        anim.setDuration(600);
+        anim.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator a) {
+                refreshSpinning = false;
+                refreshSpinIcon.setLevel(0);
+            }
+        });
+        anim.start();
+        ConfigSender.send(this, prefs, true);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 进页面自动刷一次，并让右下角那个键转一圈
+        spinRefreshFab();
+    }
+
+    /**
+     * 长按状态位那一行 ⇒ 切换全角/半角（或中英标点）。
+     *
+     * <p>状态位住在<b>微信进程</b>里，App 物理上写不到，只能请模块代设：把「设为 X」跟完整配置
+     * 一起广播过去（见 {@link ConfigSender#send}），模块改完会把新状态镜像回来
+     * （{@link BroadcastConfig#ACTION_STATE}）。这里同时乐观地先把本地镜像改掉并刷新说明，
+     * 省掉一个来回的延迟。
+     *
+     * <p>还没收到过镜像时（{@code now == null}）按「当前是关」处理，于是首次长按总是切成开。
+     */
+    private void toggleState(boolean fullwidth) {
+        final Boolean now = fullwidth ? stateFullwidth : stateEnPunct;
+        final boolean on = now == null || !now.booleanValue();
+        if (fullwidth) {
+            stateFullwidth = Boolean.valueOf(on);
+        } else {
+            stateEnPunct = Boolean.valueOf(on);
+        }
+        refreshStateText();
+        // 期望值 + 序号一起落盘，再随配置广播发出去（模块择机套用；当时没跑就等下一次配置）。
+        // 用时间戳当序号：不存在溢出；App 清数据后新值必然更大 ⇒ 不会永久失效。
+        prefs.edit()
+                .putBoolean(fullwidth ? ExtConfig.KEY_WANT_FULLWIDTH
+                        : ExtConfig.KEY_WANT_EN_PUNCT, on)
+                .putLong(ExtConfig.KEY_WANT_SEQ, System.currentTimeMillis())
+                .apply();
+        ConfigSender.send(this, prefs);
     }
 
     @Override
@@ -424,87 +581,299 @@ public class MainActivity extends Activity {
     /**
      * 一行「标签 + 下拉框」（多态设置用，例如「原样输出斜杠」三态）。
      *
-     * <p>对齐隔壁：搜狗 OEM Ext 那边就是个下拉（MaterialAutoCompleteTextView），这里用原生
-     * {@link android.widget.Spinner}，语义一样 —— 选完立刻生效并广播，不写死成按钮弹窗。
+     * <p>对齐隔壁：搜狗 OEM Ext 那边就是个下拉（MaterialAutoCompleteTextView + TextInputLayout），
+     * 语义一样 —— 选完立刻生效并广播，不写死成按钮弹窗。
      */
-    private void addSpinner(LinearLayout root, String title, String desc, final String key,
+    private void addDropdown(LinearLayout root, String title, String desc, final String key,
             final String[] labels, final int[] values, final int defValue) {
-        final LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, dp(8), 0, dp(8));
-        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-
         final TextView label = new TextView(this);
-        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         label.setText(title);
-        label.setLayoutParams(new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        row.addView(label);
+        label.setTextAppearance(com.google.android.material.R.style
+                .TextAppearance_Material3_BodyLarge);
+        label.setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface));
 
-        final android.widget.Spinner sp = new android.widget.Spinner(this);
-        final android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, labels);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        sp.setAdapter(adapter);
+        final TextView hint = new TextView(this);
+        hint.setText(desc);
+        hint.setTextAppearance(com.google.android.material.R.style
+                .TextAppearance_Material3_BodySmall);
+        hint.setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant));
+        hint.setPadding(0, 0, 0, pad / 4);
+
+        final LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(label);
+        texts.addView(hint);
+
+        final TextInputLayout til = new TextInputLayout(this);
+        til.setHintEnabled(false);
+        til.setEndIconMode(TextInputLayout.END_ICON_DROPDOWN_MENU);
+        til.setBoxBackgroundColor(themeColor(
+                com.google.android.material.R.attr.colorSurfaceContainerHighest));
+        til.setMinimumWidth((int) (160 * getResources().getDisplayMetrics().density));
+
+        final MaterialAutoCompleteTextView field = new MaterialAutoCompleteTextView(this);
+        field.setInputType(android.text.InputType.TYPE_NULL);
+        field.setFocusable(true);
+        field.setClickable(true);
+        field.setDropDownWidth(ViewGroup.LayoutParams.WRAP_CONTENT);
+        field.setAdapter(new android.widget.ArrayAdapter<>(
+                this, R.layout.dropdown_item_wrap, labels));
         final int cur = prefs.getInt(key, defValue);
         for (int i = 0; i < values.length; i++) {
-            if (values[i] == cur) sp.setSelection(i, false);
+            if (values[i] == cur) field.setText(labels[i], false);
         }
-        sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent,
-                    android.view.View view, int position, long id) {
-                if (prefs.getInt(key, defValue) == values[position]) return;   // 初始化那次别回写
-                prefs.edit().putInt(key, values[position]).apply();
-                ConfigSender.send(MainActivity.this, prefs);
-            }
-
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {
-            }
+        field.setOnItemClickListener((parent, view, position, id) -> {
+            if (prefs.getInt(key, defValue) == values[position]) return;   // 初始化那次别回写
+            prefs.edit().putInt(key, values[position]).apply();
+            ConfigSender.send(MainActivity.this, prefs);
         });
-        row.addView(sp);
-        root.addView(row);
-        addHint(root, desc);
+        til.addView(field, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(texts, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(til);
+
+        final LinearLayout box = newItemBox(root);
+        box.addView(row);
     }
 
-    private Switch addSwitch(LinearLayout root, String title, String desc,
+    private MaterialSwitch addSwitch(LinearLayout root, String title, String desc,
             final String key, boolean def) {
-        final Switch sw = new Switch(this);
-        sw.setText(title);
-        sw.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        sw.setChecked(prefs.getBoolean(key, def));
-        sw.setPadding(0, dp(12), 0, dp(4));
-        sw.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                prefs.edit().putBoolean(key, isChecked).apply();
-                ConfigSender.send(MainActivity.this, prefs);
-            }
-        });
-        root.addView(sw);
-        addHint(root, desc);
-        return sw;
+        return addSwitch(root, title, desc, key, def, true);
     }
 
-    private void addTitle(LinearLayout root, String text) {
+    /**
+     * 带「可用性」的开关行。
+     *
+     * <p>{@code enabled=false} 时灰掉且强制显示为关 —— 注意 {@code setChecked} 必须在挂监听器
+     * <b>之前</b>做，否则会顺着监听器把 false 写回 prefs，等于悄悄把用户的设置清了
+     * （搜狗那边是靠临时摘监听器绕开的，这里从构造顺序上直接避开）。
+     */
+    private MaterialSwitch addSwitch(LinearLayout root, String title, String desc,
+            final String key, boolean def, boolean enabled) {
+        return addSwitchRow(root, title, desc, key, def, enabled).sw;
+    }
+
+    /** 一行「开关 + 说明 View」。说明的末行是「当前状态：xx」时要拿得到它才能刷新。 */
+    private static final class SwitchRow {
+        final MaterialSwitch sw;
+        final TextView hint;
+
+        SwitchRow(MaterialSwitch sw, TextView hint) {
+            this.sw = sw;
+            this.hint = hint;
+        }
+    }
+
+    /**
+     * 一行「标题 + 说明」的开关卡片：左列标题在上、说明在下，右侧无文字开关垂直居中
+     * —— 与隔壁搜狗增强的条目同构。
+     */
+    private SwitchRow addSwitchRow(LinearLayout root, String title, String desc,
+            final String key, boolean def, boolean enabled) {
+        return addSwitchRow(root, title, desc, key, def, enabled, null);
+    }
+
+    /**
+     * 同上，{@code onLongPress != null} 时给整张卡片挂一个长按。
+     *
+     * <p>用来实现「长按标题亦可切换全角/半角状态」（对齐搜狗的状态位那一行）。
+     *
+     * <p>长按只挂<b>卡片 + 开关</b>：标题/说明本身不是 clickable，触摸会落到卡片上
+     * （卡片进 pressed ⇒ 水波纹正常）；反过来直接给子 View 挂会让它变成触摸目标、
+     * 卡片收不到 pressed，水波纹就没了。开关自己是 clickable 的会吃掉事件，
+     * 所以它和它内部的子 View 要单独再挂一份。
+     */
+    private SwitchRow addSwitchRow(LinearLayout root, String title, String desc,
+            final String key, boolean def, boolean enabled, final Runnable onLongPress) {
+        final MaterialSwitch sw = new MaterialSwitch(this);
+        sw.setPadding(pad / 2, 0, 0, 0);
+        // setChecked 必须早于监听器：enabled=false 时强制显示为关但**不能**写回 prefs
+        sw.setChecked(enabled && prefs.getBoolean(key, def));
+        sw.setEnabled(enabled);
+        sw.setAlpha(enabled ? 1f : 0.45f);
+        sw.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(key, isChecked).apply();
+            ConfigSender.send(MainActivity.this, prefs);
+        });
+
+        final TextView titleTv = new TextView(this);
+        titleTv.setText(title);
+        titleTv.setTextAppearance(com.google.android.material.R.style
+                .TextAppearance_Material3_BodyLarge);
+        titleTv.setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface));
+
+        final TextView hintTv = new TextView(this);
+        hintTv.setText(desc);
+        hintTv.setTextAppearance(com.google.android.material.R.style
+                .TextAppearance_Material3_BodySmall);
+        hintTv.setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant));
+        hintTv.setPadding(0, 0, 0, pad / 4);
+
+        final LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(titleTv);
+        texts.addView(hintTv);
+
+        final LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(texts, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        row.addView(sw);
+
+        final LinearLayout box = newItemBox(root);
+        box.addView(row);
+        if (onLongPress != null) {
+            final android.view.View.OnLongClickListener l = v -> {
+                onLongPress.run();
+                return true;
+            };
+            ((android.view.View) box.getParent()).setOnLongClickListener(l);
+            sw.setOnLongClickListener(l);
+            walkView(sw, v -> v.setOnLongClickListener(l));
+        }
+        return new SwitchRow(sw, hintTv);
+    }
+
+    /** 深度优先遍历子树（给整张卡片挂长按/按压反馈用）。 */
+    private void walkView(android.view.View v,
+            java.util.function.Consumer<android.view.View> action) {
+        action.accept(v);
+        if (v instanceof ViewGroup) {
+            final ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) walkView(g.getChildAt(i), action);
+        }
+    }
+
+    /** 页面标题：M3 HeadlineSmall。 */
+    private void addPageTitle(LinearLayout root, String text) {
         final TextView tv = new TextView(this);
         tv.setText(text);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        tv.setPadding(0, 0, 0, dp(8));
+        tv.setTextAppearance(com.google.android.material.R.style
+                .TextAppearance_Material3_HeadlineSmall);
+        tv.setPadding(0, pad * 2, 0, pad / 2);
         root.addView(tv);
     }
 
-    private void addHint(LinearLayout root, String text) {
+    /** 分区标题（如「快捷键」）：M3 TitleMedium + colorOnSurface。 */
+    private void addSectionTitle(LinearLayout root, String text) {
         final TextView tv = new TextView(this);
         tv.setText(text);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        tv.setTextColor(Color.GRAY);
+        tv.setTextAppearance(com.google.android.material.R.style
+                .TextAppearance_Material3_TitleMedium);
+        tv.setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurface));
+        tv.setPadding(0, 0, 0, pad / 2);
+        root.addView(tv);
+    }
+
+    /**
+     * 竖直留白。
+     *
+     * <p>以前是靠给文案前面塞 {@code "\n"} 凑间距（{@code addTitle(root, "\n快捷键")}），
+     * 那样文案本身就脏了 —— 导出文案时得连着换行一起搬，改字号/改间距也互相绑死。
+     * 间距归布局管，文案保持干净。
+     */
+    private void addGap(LinearLayout root, int dpValue) {
+        final android.view.View v = new android.view.View(this);
+        v.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(dpValue)));
+        root.addView(v);
+    }
+
+    private TextView addHint(LinearLayout root, String text) {
+        final TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextAppearance(com.google.android.material.R.style
+                .TextAppearance_Material3_BodySmall);
+        tv.setTextColor(themeColor(com.google.android.material.R.attr.colorOnSurfaceVariant));
         tv.setPadding(0, 0, 0, dp(6));
         final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         tv.setLayoutParams(lp);
         root.addView(tv);
+        return tv;
+    }
+
+    /**
+     * 一个设置项 = 一整个卡片（与 BZK / 搜狗增强同款：圆角 pad*3/4、outline 描边、
+     * 0 elevation、?attr/selectableItemBackground 水波纹）。
+     *
+     * <p>返回卡片里的竖直容器：调用方往里 addView 内容即可。
+     */
+    private LinearLayout newItemBox(LinearLayout parent) {
+        final MaterialCardView card = new MaterialCardView(this);
+        final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, pad / 2, 0, 0);
+        card.setLayoutParams(lp);
+        card.setRadius(pad * 3 / 4f);
+        card.setCardElevation(0f);
+        card.setStrokeWidth(Math.max(1, pad / 16));
+        card.setStrokeColor(themeColor(com.google.android.material.R.attr.colorOutlineVariant));
+        // 动画风格与 BZK 一致：ripple（?attr/selectableItemBackground），不做缩放
+        final TypedValue rippleTv = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.selectableItemBackground, rippleTv, true);
+        if (rippleTv.resourceId != 0) {
+            card.setForeground(ContextCompat.getDrawable(this, rippleTv.resourceId));
+        }
+        card.setClickable(true);
+        card.setFocusable(true);
+
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad * 3 / 4, pad / 2, pad * 3 / 4, pad / 2);
+        card.addView(box);
+        parent.addView(card);
+        return box;
+    }
+
+    /**
+     * BetterZUIKey 主程序是否安装。
+     *
+     * <p>为什么严格模式要看它：开了严格模式就把微信自己的切语言拦掉了，语言只能由框架推过来；
+     * 而框架侧的语言轮转正是 BZK 在做（它给「微信输入法」内置了一条 {@code framework} 策略）。
+     * 没装 BZK 还开严格模式 = 语言两边都切不动，所以没装时直接把这一行灰掉。
+     */
+    @SuppressWarnings("deprecation")
+    private boolean hasBetterZUIKey() {
+        try {
+            getPackageManager().getPackageInfo(BZK_PKG, 0);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** 从主题属性取颜色（M3 的 ?attr/colorXxx 不在 values 里，只能这样取）。 */
+    private int themeColor(int attrRes) {
+        final TypedValue tv = new TypedValue();
+        getTheme().resolveAttribute(attrRes, tv, true);
+        if (tv.resourceId != 0) return ContextCompat.getColor(this, tv.resourceId);
+        return tv.data;
+    }
+
+    /** Android 15+ 强制 edge-to-edge：把系统栏高度补成内边距。 */
+    private static void applyInsets(View root) {
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top;
+            int bottom;
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                final android.graphics.Insets bars =
+                        insets.getInsets(android.view.WindowInsets.Type.systemBars());
+                top = bars.top;
+                bottom = bars.bottom;
+            } else {
+                top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(0, top, 0, bottom);
+            return insets;
+        });
     }
 
     private int dp(int v) {

@@ -26,6 +26,8 @@ final class PunctState {
 
     private static final String K_FULLWIDTH = "stateFullwidth";
     private static final String K_EN_PUNCT = "stateEnPunct";
+    /** 上次套用过的「期望值」序号（见 {@link BroadcastConfig#EXTRA_WANT_SEQ}）。 */
+    private static final String K_APPLIED_SEQ = "wantAppliedSeq";
 
     /** 全角态（Shift+Space 切）。 */
     private static volatile boolean sFullwidth;
@@ -85,6 +87,32 @@ final class PunctState {
     /** 设置页每次打开会来要一次当前状态（模块侧收到广播时调）。 */
     static void mirrorNow(Context ctx) {
         mirror(ctx);
+    }
+
+    /**
+     * 上次套用过的「期望值序号」。
+     *
+     * <p>App 每次进设置页都会把完整配置推一遍（含期望值），只有序号更大才该采纳，
+     * 否则会把用户刚用热键切好的状态覆盖掉。
+     */
+    static long appliedSeq(Context ctx) {
+        if (ctx == null) return 0L;
+        try {
+            return ctx.getSharedPreferences(ExtConfig.STATE_PREFS, Context.MODE_PRIVATE)
+                    .getLong(K_APPLIED_SEQ, 0L);
+        } catch (Throwable tr) {
+            return 0L;
+        }
+    }
+
+    static void markAppliedSeq(Context ctx, long seq) {
+        if (ctx == null) return;
+        try {
+            ctx.getSharedPreferences(ExtConfig.STATE_PREFS, Context.MODE_PRIVATE)
+                    .edit().putLong(K_APPLIED_SEQ, seq).apply();
+        } catch (Throwable tr) {
+            Log.w(TAG, "PunctState persist seq failed: " + tr);
+        }
     }
 
     /** 把当前状态回传给设置页（显式指定包名，否则包可见性会把它丢掉）。 */

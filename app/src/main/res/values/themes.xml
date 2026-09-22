@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.BetterZUIKeyWeTypeExt" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 与 BZK / SogouOEMExt / GboardExt 同一套：Material 3 DayNight、无 ActionBar（标题自己画） -->
+    <style name="Theme.BetterZUIKeyWeTypeExt" parent="Theme.Material3.DayNight.NoActionBar" />
 </resources>

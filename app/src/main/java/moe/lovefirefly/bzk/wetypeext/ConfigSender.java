@@ -41,6 +41,15 @@ final class ConfigSender {
     }
 
     static void send(Context ctx, SharedPreferences prefs) {
+        send(ctx, prefs, true);
+    }
+
+    /**
+     * @param wantState 是否顺手向模块要一次当前状态位。当前生效的输入法不是微信输入法时没必要要
+     *                  ——模块不会生效，要了也不会回来（调用方见
+     *                  {@code MainActivity#isTargetImeActive()}）。
+     */
+    static void send(Context ctx, SharedPreferences prefs, boolean wantState) {
         try {
             final ExtConfig cfg = ExtConfig.load(prefs);
             final Intent i = new Intent(BroadcastConfig.ACTION);
@@ -53,14 +62,24 @@ final class ConfigSender {
             i.putExtra(BroadcastConfig.EXTRA_SMART_NUMBER, cfg.smartNumber);
             i.putExtra(BroadcastConfig.EXTRA_FULLWIDTH, cfg.fullwidthFeature);
             i.putExtra(BroadcastConfig.EXTRA_EN_PUNCT, cfg.enPunctFeature);
-            i.putExtra(BroadcastConfig.EXTRA_WANT_STATE, true);   // 顺手要一次状态位
+            if (wantState) {
+                i.putExtra(BroadcastConfig.EXTRA_WANT_STATE, true);   // 顺手要一次状态位
+            }
             i.putExtra(BroadcastConfig.EXTRA_AUTO_PAIR, cfg.autoPair);
             i.putExtra(BroadcastConfig.EXTRA_CLOSE_SKIP, cfg.closeSkip);
             i.putExtra(BroadcastConfig.EXTRA_SHIFT_FIX, cfg.shiftSwitchFix);
             i.putExtra(BroadcastConfig.EXTRA_SLASH_MODE, cfg.slashMode);
             i.putExtra(BroadcastConfig.EXTRA_HOTKEYS, cfg.hotkeys);
+            // 状态位期望值 + 序号：跟着每条配置一起发，模块择机套用（当时没跑就等下一次）
+            i.putExtra(BroadcastConfig.EXTRA_WANT_FULLWIDTH,
+                    prefs.getBoolean(ExtConfig.KEY_WANT_FULLWIDTH, false));
+            i.putExtra(BroadcastConfig.EXTRA_WANT_EN_PUNCT,
+                    prefs.getBoolean(ExtConfig.KEY_WANT_EN_PUNCT, false));
+            i.putExtra(BroadcastConfig.EXTRA_WANT_SEQ,
+                    prefs.getLong(ExtConfig.KEY_WANT_SEQ, 0L));
             ctx.sendBroadcast(i);
-            Log.i(TAG, "config sent -> " + cfg);
+            Log.i(TAG, "config sent -> " + cfg + " wantSeq="
+                    + prefs.getLong(ExtConfig.KEY_WANT_SEQ, 0L));
         } catch (Throwable tr) {
             Log.w(TAG, "config send failed: " + tr);
         }
