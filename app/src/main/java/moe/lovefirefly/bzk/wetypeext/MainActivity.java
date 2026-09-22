@@ -65,14 +65,11 @@ public class MainActivity extends Activity {
                         + "关：只响应系统语言真正变化的时刻。",
                 ExtConfig.KEY_TRANSLATE_ON_START, cfg.subtypeStrictOnStart);
 
-        addSwitch(root, "微信内切换后回写系统",
-                "在微信里用 Ctrl+Shift 或工具栏中英键切了语言后，把系统那边的语言状态也改一致。"
-                        + "这样系统与 BetterZUIKey 看到的语言不会和实际脱节。\n"
-                        + "本功能不拦按键（只在语言确实变了之后回写），Ctrl+Shift+P 之类的组合键不受影响。",
-                ExtConfig.KEY_SYNC_BACK, cfg.syncBackToFramework);
-
         addSwitch(root, "只认系统语言（严格模式）",
-                "拒绝微信自己切语言（Ctrl+Shift / 工具栏中英键），语言只跟着系统走。\n"
+                "开：拒绝微信自己切语言（Ctrl+Shift / 工具栏中英键），语言只跟着系统走；"
+                        + "此时不需要「回写」（它压根切不了）。\n"
+                        + "关（默认）：微信里怎么切都行，切完模块把系统那边的语言状态回写成一致，"
+                        + "免得系统 / BetterZUIKey 看到的语言和实际脱节。\n"
                         + "不会拦按键：我们拦的是微信已经判定为「切语言」的那个动作，"
                         + "所以 Ctrl+Shift+P 这类组合键不受影响；符号/数字/手写面板也照常能开。\n"
                         + "注意：打开后 Ctrl+Shift 不再切语言（这正是严格模式的意思）。",

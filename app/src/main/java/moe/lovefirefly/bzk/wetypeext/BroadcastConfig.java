@@ -27,7 +27,6 @@ final class BroadcastConfig {
     static final String EXTRA_EN_NO_SUGGEST = ExtConfig.KEY_EN_NO_SUGGEST;
     static final String EXTRA_TRANSLATE = ExtConfig.KEY_TRANSLATE;
     static final String EXTRA_TRANSLATE_ON_START = ExtConfig.KEY_TRANSLATE_ON_START;
-    static final String EXTRA_SYNC_BACK = ExtConfig.KEY_SYNC_BACK;
     static final String EXTRA_STRICT = ExtConfig.KEY_STRICT;
     static final String EXTRA_SHIFT_PASSTHRU = ExtConfig.KEY_SHIFT_PASSTHRU;
     static final String EXTRA_SMART_NUMBER = ExtConfig.KEY_SMART_NUMBER;
@@ -93,7 +92,6 @@ final class BroadcastConfig {
                             intent.getBooleanExtra(EXTRA_TRANSLATE, ExtConfig.DEF_TRANSLATE),
                             intent.getBooleanExtra(EXTRA_TRANSLATE_ON_START,
                                     ExtConfig.DEF_TRANSLATE_ON_START),
-                            intent.getBooleanExtra(EXTRA_SYNC_BACK, ExtConfig.DEF_SYNC_BACK),
                             intent.getBooleanExtra(EXTRA_STRICT, ExtConfig.DEF_STRICT),
                             intent.getBooleanExtra(EXTRA_SHIFT_PASSTHRU,
                                     ExtConfig.DEF_SHIFT_PASSTHRU),

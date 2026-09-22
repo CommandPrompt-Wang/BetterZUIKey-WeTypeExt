@@ -28,6 +28,7 @@ final class ExtConfig {
     static final String KEY_EN_NO_SUGGEST = "enNoSuggest";
     static final String KEY_TRANSLATE = "subtypeTranslate";
     static final String KEY_TRANSLATE_ON_START = "subtypeStrictOnStart";
+    /** @deprecated 已并入严格模式（{@code syncBack = !strict}），只为兼容旧的 App prefs 保留键名。 */
     static final String KEY_SYNC_BACK = "syncBackToFramework";
     static final String KEY_STRICT = "strictFrameworkOnly";
     static final String KEY_SHIFT_PASSTHRU = "shiftPassThrough";
@@ -49,7 +50,7 @@ final class ExtConfig {
     static final boolean DEF_EN_NO_SUGGEST = true;
     static final boolean DEF_TRANSLATE = true;
     static final boolean DEF_TRANSLATE_ON_START = true;
-    static final boolean DEF_SYNC_BACK = true;
+    static final boolean DEF_SYNC_BACK = true;   // 仅旧配置兼容用，见 syncBackToFramework
     /** 严格模式：语言只由系统框架决定。默认<b>关</b>（开了之后微信自己的 Ctrl+Shift 就不好使了）。 */
     static final boolean DEF_STRICT = false;
     /** Shift 键放行（TASK 5）：见 {@link ShiftPassthrough}。默认开。 */
@@ -107,6 +108,10 @@ final class ExtConfig {
     /**
      * 微信<b>内部</b>切换语言后，把框架 subtype 回写成一致（反向同步）。
      *
+     * <p>⚠️ 2026-09-22 用户口径：<b>它和严格模式是一件事的两面，不再单独给开关</b> ——
+     * 严格模式开着时微信自己切不了，也就没什么可回写；关着时微信内部怎么切，我们就回写、
+     * 让系统/框架跟它保持一致。所以这里直接取 {@code !strictFrameworkOnly}。
+     *
      * <p>动机：微信自己切中英（Ctrl+Shift / 工具栏中英键）<b>不告诉框架</b>，
      * 于是框架以为还是中文、系统与 BetterZUIKey 的语言状态就与真实语言脱节。
      * 回写之后就双向一致，严格模式关着也不会有"不同步"的问题。
@@ -148,14 +153,15 @@ final class ExtConfig {
     final String hotkeys;
 
     ExtConfig(boolean enNoSuggest, boolean subtypeTranslate, boolean subtypeStrictOnStart,
-            boolean syncBackToFramework, boolean strictFrameworkOnly,
+            boolean strictFrameworkOnly,
             boolean shiftPassThrough, boolean smartNumber,
             boolean fullwidthFeature, boolean enPunctFeature, boolean autoPair,
             boolean closeSkip, boolean shiftSwitchFix, int slashMode, String hotkeys) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
-        this.syncBackToFramework = syncBackToFramework;
+        // 与严格模式互斥：严格=只认框架（没有可回写的）；非严格=微信内切换后回写框架
+        this.syncBackToFramework = !strictFrameworkOnly;
         this.strictFrameworkOnly = strictFrameworkOnly;
         this.shiftPassThrough = shiftPassThrough;
         this.smartNumber = smartNumber;
@@ -170,7 +176,7 @@ final class ExtConfig {
 
     static ExtConfig defaults() {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
-                DEF_SYNC_BACK, DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER,
+                DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER,
                 DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT_FEATURE, DEF_AUTO_PAIR,
                 DEF_CLOSE_SKIP, DEF_SHIFT_FIX, DEF_SLASH_MODE, "");
     }
@@ -182,7 +188,6 @@ final class ExtConfig {
                     sp.getBoolean(KEY_EN_NO_SUGGEST, DEF_EN_NO_SUGGEST),
                     sp.getBoolean(KEY_TRANSLATE, DEF_TRANSLATE),
                     sp.getBoolean(KEY_TRANSLATE_ON_START, DEF_TRANSLATE_ON_START),
-                    sp.getBoolean(KEY_SYNC_BACK, DEF_SYNC_BACK),
                     sp.getBoolean(KEY_STRICT, DEF_STRICT),
                     sp.getBoolean(KEY_SHIFT_PASSTHRU, DEF_SHIFT_PASSTHRU),
                     sp.getBoolean(KEY_SMART_NUMBER, DEF_SMART_NUMBER),
@@ -219,7 +224,6 @@ final class ExtConfig {
                     .putBoolean(KEY_EN_NO_SUGGEST, c.enNoSuggest)
                     .putBoolean(KEY_TRANSLATE, c.subtypeTranslate)
                     .putBoolean(KEY_TRANSLATE_ON_START, c.subtypeStrictOnStart)
-                    .putBoolean(KEY_SYNC_BACK, c.syncBackToFramework)
                     .putBoolean(KEY_STRICT, c.strictFrameworkOnly)
                     .putBoolean(KEY_SHIFT_PASSTHRU, c.shiftPassThrough)
                     .putBoolean(KEY_SMART_NUMBER, c.smartNumber)

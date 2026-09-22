@@ -48,7 +48,6 @@ final class ConfigSender {
             i.putExtra(BroadcastConfig.EXTRA_EN_NO_SUGGEST, cfg.enNoSuggest);
             i.putExtra(BroadcastConfig.EXTRA_TRANSLATE, cfg.subtypeTranslate);
             i.putExtra(BroadcastConfig.EXTRA_TRANSLATE_ON_START, cfg.subtypeStrictOnStart);
-            i.putExtra(BroadcastConfig.EXTRA_SYNC_BACK, cfg.syncBackToFramework);
             i.putExtra(BroadcastConfig.EXTRA_STRICT, cfg.strictFrameworkOnly);
             i.putExtra(BroadcastConfig.EXTRA_SHIFT_PASSTHRU, cfg.shiftPassThrough);
             i.putExtra(BroadcastConfig.EXTRA_SMART_NUMBER, cfg.smartNumber);
