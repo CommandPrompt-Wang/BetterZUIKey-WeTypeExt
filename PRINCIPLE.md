@@ -195,7 +195,33 @@ config broadcast -> enNoSuggest=false                       ← 即时生效
 
 ---
 
-## §8 运维要点（都踩过，别再踩）
+## §8 更宽松的键盘识别
+
+**测到的两件事**：
+
+- 微信判「你在用物理键盘」靠 `hardware/d.b(int)`：**只有 A–Z（`keyCode 29..54`）**才会调 `g.l(true)` 进硬件模式；
+  其它键连 `WxHldService` 那道物理键闸门都过不去（`… && d.b(keyCode) && !keyboardShow && keyCode != 4`）。
+  所以按标点 / 方向键时软键盘不会收起。
+- 那道闸门只看「有个键走到了硬件键路径」，**不等于物理键盘** —— ZUXOS 的 `Win+L` / `Alt+Shift` / `Meta`
+  等都会 `injectKeyEvent`，走同一条路。实测两者可分：
+
+| | deviceId | source | scanCode | flags |
+|---|---|---|---|---|
+| 物理键盘 | `18` | `0x101` | 33 | `0x8` |
+| 注入 | `-1` | `0x0` | 0 | `0x0` |
+
+⚠️ 判据要写成**位测** `(source & SOURCE_KEYBOARD) != 0`，不能写 `== SOURCE_KEYBOARD`：
+键鼠一体的设备（无线接收器、平板键盘保护套的触摸板）会把 source 或起来（`0x101 | 0x2002`），
+用等号判会把整块键盘漏掉。再排掉**虚拟设备**（`InputDevice.isVirtual()`，`input` 命令与系统注入走的就是它）。
+
+**怎么解**：按键钩子（已有、跑在闸门之前）那里拿得到 `KeyEvent`，按三档判够不够格 ——
+1 字母（交给微信自己，零回归）／2 可打印（`getUnicodeChar() > 0` 且非控制符）／3 任何操作（仍要过物理校验）。
+够格就记一笔，再挂 `hardware/d.b(int)`：趁标记新鲜时**借 A–Z 的键码问它一次**，
+微信自己就会进硬件模式（软键盘随之收起）—— 不用碰它的混淆字段。
+
+---
+
+## §9 运维要点（都踩过，别再踩）
 
 1. **`pidof com.tencent.wetype` 匹配不到 `com.tencent.wetype:hld`**（进程名带后缀）。
    要 `ps -A -o PID,NAME | grep com.tencent.wetype | awk '{print $1}'` 再杀；
@@ -206,7 +232,7 @@ config broadcast -> enNoSuggest=false                       ← 即时生效
 
 ---
 
-## §9 已知边界与待办
+## §10 已知边界与待办
 
 - 微信内部锚点（`N` / `ImeCandidateView` 等）随版本可能变；只按结构定位、认不出就**降级放行**，不崩
 - 只针对 `3.5.4`（`56201`）实测；换版本后建议重跑一遍探针确认锚点还在

@@ -33,6 +33,15 @@ final class Hotkeys {
 
     private static final String TAG = BridgeHook.TAG;
 
+    /**
+     * 诊断（排查完置回 false）：把物理键路径上每个键事件的<b>来源信息</b>打出来。
+     *
+     * <p>要回答的问题：钩子收到的键，怎么区分「真物理键盘」和「系统注入」——
+     * ZUXOS 的 {@code Win+L} / {@code Alt+Shift} / {@code Meta} 等都会 {@code injectKeyEvent}，
+     * 它们走的是同一条路。看 {@code dev} 与 {@code src} 是否可分。
+     */
+    private static final boolean DEV_KEY_SOURCE_TRACE = false;
+
     private static volatile boolean sInstalled;
 
     /**
@@ -76,12 +85,33 @@ final class Hotkeys {
             final Method m = d.getDeclaredMethod(name, int.class, KeyEvent.class);
             m.setAccessible(true);
             module.hook(m).intercept(chain -> {
+                if (DEV_KEY_SOURCE_TRACE) {
+                    try {
+                        final Object evT = chain.getArg(1);
+                        if (evT instanceof KeyEvent) {
+                            final KeyEvent e = (KeyEvent) evT;
+                            Log.i(TAG, "keysrc " + (down ? "down " : "up   ")
+                                    + " kc=" + e.getKeyCode()
+                                    + " dev=" + e.getDeviceId()
+                                    + " src=0x" + Integer.toHexString(e.getSource())
+                                    + " scan=" + e.getScanCode()
+                                    + " flags=0x" + Integer.toHexString(e.getFlags())
+                                    + " meta=0x" + Integer.toHexString(e.getMetaState())
+                                    + " uni=" + e.getUnicodeChar()
+                                    + " rep=" + e.getRepeatCount());
+                        }
+                    } catch (Throwable tr) {
+                        Log.w(TAG, "keysrc err: " + tr);
+                    }
+                }
                 // 任何物理键都记一笔（带字符，供 、 的 / \ 消歧）
                 try {
                     final Object ev = chain.getArg(1);
                     final int uc = ev instanceof KeyEvent
                             ? ((KeyEvent) ev).getUnicodeChar() : 0;
                     InputSource.markPhysical(uc > 0 ? (char) uc : (char) 0);
+                    // 更宽松的键盘识别：够格的键记一笔，等 hardware/d.b 那边借它进硬件模式
+                    if (ev instanceof KeyEvent) KbdDetect.noteKey((KeyEvent) ev);
                 } catch (Throwable tr) {
                     InputSource.markPhysical();
                 }

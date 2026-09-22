@@ -81,6 +81,14 @@ final class ExtConfig {
     static final String KEY_WANT_EN_PUNCT = "wantEnPunct";
     static final String KEY_WANT_SEQ = "wantSeq";
 
+    /**
+     * 「更宽松的键盘识别」级别：1=只认字母（默认，交给微信自己判断）2=可打印字符 3=任何操作。
+     *
+     * <p>微信只拿 A–Z 当「你在用物理键盘」，所以按标点/方向键时软键盘不会收起。
+     * 详见 {@link KbdDetect}。
+     */
+    static final String KEY_KBD_DETECT = "kbdDetect";
+
     // 默认值（界面、发送方、模块侧三处必须一致，否则会出现"界面显示开、实际是关"）
     static final boolean DEF_EN_NO_SUGGEST = true;
     /** 固定行为，不再可配（键名只为兼容旧 prefs）。 */
@@ -129,6 +137,8 @@ final class ExtConfig {
     static final boolean DEF_SHIFT_FIX = true;
     /** 原样输出斜杠：默认<b>关</b>（保持微信原生：/ 与 \ 都出 、）。 */
     static final int DEF_SLASH_MODE = 0;
+    /** 键盘识别级别默认 1 = 只认字母（与加这个开关之前的行为一致）。 */
+    static final int DEF_KBD_DETECT = 1;
 
     /** 英文键盘不显示候选/联想（两种都去：打字过程中的补全 + 上屏后的下一个词）。 */
     final boolean enNoSuggest;
@@ -193,6 +203,9 @@ final class ExtConfig {
     /** 原样输出斜杠：0=关 1=/ 2=\ 。 */
     final int slashMode;
 
+    /** 键盘识别级别：1=只认字母 2=可打印字符 3=任何操作（见 {@link KbdDetect}）。 */
+    final int kbdDetect;
+
     /** 快捷键配置串（空 = 全默认）。 */
     final String hotkeys;
 
@@ -200,7 +213,8 @@ final class ExtConfig {
             boolean strictFrameworkOnly,
             boolean shiftPassThrough, boolean smartNumber,
             boolean fullwidthFeature, boolean enPunctFeature, boolean autoPair,
-            boolean closeSkip, boolean shiftSwitchFix, int slashMode, String hotkeys) {
+            boolean closeSkip, boolean shiftSwitchFix, int slashMode, int kbdDetect,
+            String hotkeys) {
         this.enNoSuggest = enNoSuggest;
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
@@ -215,6 +229,7 @@ final class ExtConfig {
         this.closeSkip = closeSkip;
         this.shiftSwitchFix = shiftSwitchFix;
         this.slashMode = slashMode;
+        this.kbdDetect = kbdDetect;
         this.hotkeys = hotkeys == null ? "" : hotkeys;
     }
 
@@ -222,7 +237,7 @@ final class ExtConfig {
         return new ExtConfig(DEF_EN_NO_SUGGEST, DEF_TRANSLATE, DEF_TRANSLATE_ON_START,
                 DEF_STRICT, DEF_SHIFT_PASSTHRU, DEF_SMART_NUMBER,
                 DEF_FULLWIDTH_FEATURE, DEF_EN_PUNCT_FEATURE, DEF_AUTO_PAIR,
-                DEF_CLOSE_SKIP, DEF_SHIFT_FIX, DEF_SLASH_MODE, "");
+                DEF_CLOSE_SKIP, DEF_SHIFT_FIX, DEF_SLASH_MODE, DEF_KBD_DETECT, "");
     }
 
     static ExtConfig load(SharedPreferences sp) {
@@ -243,6 +258,7 @@ final class ExtConfig {
                     sp.getBoolean(KEY_CLOSE_SKIP, DEF_CLOSE_SKIP),
                     sp.getBoolean(KEY_SHIFT_FIX, DEF_SHIFT_FIX),
                     sp.getInt(KEY_SLASH_MODE, DEF_SLASH_MODE),
+                    sp.getInt(KEY_KBD_DETECT, DEF_KBD_DETECT),
                     sp.getString(KEY_HOTKEYS, ""));
         } catch (Throwable tr) {
             return defaults();
@@ -278,6 +294,7 @@ final class ExtConfig {
                     .putBoolean(KEY_CLOSE_SKIP, c.closeSkip)
                     .putBoolean(KEY_SHIFT_FIX, c.shiftSwitchFix)
                     .putInt(KEY_SLASH_MODE, c.slashMode)
+                    .putInt(KEY_KBD_DETECT, c.kbdDetect)
                     .putString(KEY_HOTKEYS, c.hotkeys)
                     .apply();
         } catch (Throwable tr) {
@@ -298,7 +315,7 @@ final class ExtConfig {
                 + "-ap" + (autoPair ? 1 : 0)
                 + "-cs" + (closeSkip ? 1 : 0)
                 + "-sf" + (shiftSwitchFix ? 1 : 0)
-                + "-sl" + slashMode
+                + "-sl" + slashMode + "-kd" + kbdDetect
                 + "-hk" + hotkeys.hashCode();
     }
 
@@ -313,7 +330,7 @@ final class ExtConfig {
                 + " smartNumber=" + smartNumber
                 + " fullwidthFeature=" + fullwidthFeature + " enPunctFeature=" + enPunctFeature
                 + " autoPair=" + autoPair + " closeSkip=" + closeSkip
-                + " shiftFix=" + shiftSwitchFix + " slashMode=" + slashMode
+                + " shiftFix=" + shiftSwitchFix + " slashMode=" + slashMode + " kbdDetect=" + kbdDetect
                 + " hotkeys=" + hotkeys;
     }
 

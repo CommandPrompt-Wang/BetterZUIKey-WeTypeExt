@@ -176,6 +176,8 @@ final class ServiceProbe {
         IcTrace.install(sModule, cl);
         // TASK 1 括号配对总开关（关掉时在 IC 层拆掉自动补的那半截）
         PairGate.install(sModule, cl);
+        // 更宽松的键盘识别：任何物理键都能让微信进硬件模式（收起软键盘）
+        KbdDetect.install(sModule, cl);
         // 诊断探针（谁藏了窗口 / 函数分发器 / 面板 bundle），默认全关，排查时再开
         if (BridgeHook.DEV_HIDE_PROBE) {
             HideProbe.install(sModule, cl);

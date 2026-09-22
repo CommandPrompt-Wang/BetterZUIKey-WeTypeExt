@@ -69,6 +69,8 @@ final class BroadcastConfig {
     static final String EXTRA_SHIFT_FIX = ExtConfig.KEY_SHIFT_FIX;
     static final String EXTRA_SLASH_MODE = ExtConfig.KEY_SLASH_MODE;
     static final String EXTRA_HOTKEYS = ExtConfig.KEY_HOTKEYS;
+    /** 「更宽松的键盘识别」级别（1 字母 / 2 可打印 / 3 任何操作），见 {@link KbdDetect}。 */
+    static final String EXTRA_KBD_DETECT = ExtConfig.KEY_KBD_DETECT;
 
     /** 设置页"正在录制快捷键"的专用 action（App → 模块）：录制期间热键临时不响应。 */
     static final String ACTION_RECORDING = "moe.lovefirefly.bzk.wetypeext.RECORDING";
@@ -119,6 +121,7 @@ final class BroadcastConfig {
                             intent.getBooleanExtra(EXTRA_CLOSE_SKIP, ExtConfig.DEF_CLOSE_SKIP),
                             intent.getBooleanExtra(EXTRA_SHIFT_FIX, ExtConfig.DEF_SHIFT_FIX),
                             intent.getIntExtra(EXTRA_SLASH_MODE, ExtConfig.DEF_SLASH_MODE),
+                            intent.getIntExtra(EXTRA_KBD_DETECT, ExtConfig.DEF_KBD_DETECT),
                             intent.getStringExtra(EXTRA_HOTKEYS) == null ? ""
                                     : intent.getStringExtra(EXTRA_HOTKEYS));
                     ExtConfig.set(cfg);

@@ -145,6 +145,12 @@ public class MainActivity extends AppCompatActivity {
                 "修复按住 Shift 输入大写字母时意外切换语言的问题",
                 ExtConfig.KEY_SHIFT_FIX, cfg.shiftSwitchFix);
 
+        addDropdown(root, "更宽松的键盘识别",
+                "让更多物理键盘操作（而不只是字母）都会收起软键盘",
+                ExtConfig.KEY_KBD_DETECT,
+                new String[]{"字母（默认）", "可打印字符", "任何操作"},
+                new int[]{1, 2, 3}, ExtConfig.DEF_KBD_DETECT);
+
         // ── ⑥ 快捷键 ──
         addHotkeySection(root);
 

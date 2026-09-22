@@ -70,6 +70,7 @@ final class ConfigSender {
             i.putExtra(BroadcastConfig.EXTRA_SHIFT_FIX, cfg.shiftSwitchFix);
             i.putExtra(BroadcastConfig.EXTRA_SLASH_MODE, cfg.slashMode);
             i.putExtra(BroadcastConfig.EXTRA_HOTKEYS, cfg.hotkeys);
+            i.putExtra(BroadcastConfig.EXTRA_KBD_DETECT, cfg.kbdDetect);
             // 状态位期望值 + 序号：跟着每条配置一起发，模块择机套用（当时没跑就等下一次）
             i.putExtra(BroadcastConfig.EXTRA_WANT_FULLWIDTH,
                     prefs.getBoolean(ExtConfig.KEY_WANT_FULLWIDTH, false));
