@@ -46,7 +46,7 @@ final class ExtConfig {
      * <p>恒为 true（见 {@link #subtypeStrictOnStart}）；键名保留只为兼容旧 prefs。
      */
     static final String KEY_TRANSLATE_ON_START = "subtypeStrictOnStart";
-    /** 已并入严格模式（{@code syncBack = !strict}），只为兼容旧的 App prefs 保留键名。 */
+    /** 回写已改为恒开（见 {@link #syncBackToFramework}）；此键只为兼容旧的 App prefs 保留。 */
     static final String KEY_SYNC_BACK = "syncBackToFramework";
     /**
      * <b>语言部分唯一保留下来的开关</b>：严格模式（只认系统语言）。
@@ -162,13 +162,15 @@ final class ExtConfig {
     /**
      * 微信<b>内部</b>切换语言后，把框架 subtype 回写成一致（反向同步）。
      *
-     * <p>⚠️ 2026-09-22 用户口径：<b>它和严格模式是一件事的两面，不再单独给开关</b> ——
-     * 严格模式开着时微信自己切不了，也就没什么可回写；关着时微信内部怎么切，我们就回写、
-     * 让系统/框架跟它保持一致。所以这里直接取 {@code !strictFrameworkOnly}。
+     * <p>⚠️ 2026-09-22：<b>恒为 true</b>。以前取 {@code !strictFrameworkOnly} 的理由是
+     * 「严格模式开着时微信自己切不了，没什么可回写」—— 但严格模式现在只拦<b>物理键盘</b>那条路，
+     * 软键盘的中英键与工具栏照常能切。那些切换走到 {@code N.k3} 时如果不同步回框架，
+     * 框架就还停在旧语言（系统状态脱节），而且严格模式开着"每次进输入框按框架对齐"，
+     * 下一次进输入框就会把刚切过去的语言**拉回来** —— 表现成"软键盘切了但活不过下一个输入框"。
      *
-     * <p>动机：微信自己切中英（Ctrl+Shift / 工具栏中英键）<b>不告诉框架</b>，
+     * <p>动机：微信自己切中英（物理键盘 Ctrl+Shift / 工具栏中英键）<b>不告诉框架</b>，
      * 于是框架以为还是中文、系统与 BetterZUIKey 的语言状态就与真实语言脱节。
-     * 回写之后就双向一致，严格模式关着也不会有"不同步"的问题。
+     * 回写之后就双向一致。
      *
      * <p>⚠️ 本功能<b>不拦按键</b>：只在"键盘语言确实变了"之后动作（观测 {@code N.k3}），
      * 所以 Ctrl+Shift+P 这类组合键一个都不受影响（搜狗组件曾在按键层吞 Ctrl+Shift，
@@ -219,7 +221,9 @@ final class ExtConfig {
         this.subtypeTranslate = subtypeTranslate;
         this.subtypeStrictOnStart = subtypeStrictOnStart;
         // 与严格模式互斥：严格=只认框架（没有可回写的）；非严格=微信内切换后回写框架
-        this.syncBackToFramework = !strictFrameworkOnly;
+        // 恒 true：严格模式下物理切换已被 SubtypeGuard 拦掉，能走到 N.k3 的只剩
+        // 软键盘/工具栏那类切换 —— 那些正该回写，否则系统状态不跟、下次对齐还会被拉回去。
+        this.syncBackToFramework = true;
         this.strictFrameworkOnly = strictFrameworkOnly;
         this.shiftPassThrough = shiftPassThrough;
         this.smartNumber = smartNumber;
