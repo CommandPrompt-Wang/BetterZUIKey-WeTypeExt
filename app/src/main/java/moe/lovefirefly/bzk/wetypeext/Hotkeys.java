@@ -95,6 +95,20 @@ final class Hotkeys {
                 } catch (Throwable tr) {
                     Log.w(TAG, "Hotkeys: shiftFix note err: " + tr);
                 }
+                try {
+                    // 严格模式：Shift 是"物理键盘切语言"那条路的必经点，记一笔给 SubtypeGuard
+                    // （它据此把物理键盘发起的切换与软键盘中英键区分开）
+                    final Object kcP = chain.getArg(0);
+                    if (kcP instanceof Integer) {
+                        final int kc = ((Integer) kcP).intValue();
+                        if (kc == KeyEvent.KEYCODE_SHIFT_LEFT
+                                || kc == KeyEvent.KEYCODE_SHIFT_RIGHT) {
+                            SubtypeGuard.notePhysicalShift();
+                        }
+                    }
+                } catch (Throwable tr) {
+                    Log.w(TAG, "Hotkeys: physical shift note err: " + tr);
+                }
                 if (route(chain, down)) return Boolean.TRUE;
                 return chain.proceed();
             });

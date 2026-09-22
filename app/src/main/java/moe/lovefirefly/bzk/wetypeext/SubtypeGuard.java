@@ -48,9 +48,19 @@ final class SubtypeGuard {
     /** 自己发起的切换，认这么多毫秒（够协程切到主线程再执行）。 */
     private static final long OURS_TTL_MS = 1500L;
 
+    /**
+     * 「刚在物理键盘上按过 Shift」认这么多毫秒。
+     *
+     * <p>物理切语言那条路必经 Shift 按键（{@code hardware/d.n/o(59/60)}），而<b>软键盘的中英键、
+     * 工具栏中英键都不经过它</b>。所以用这个标记把「物理键盘发起的切换」和「软键盘发起的切换」分开。
+     */
+    private static final long PHYSICAL_TTL_MS = 800L;
+
     private static volatile boolean sInstalled;
     private static volatile int sOursTarget = Integer.MIN_VALUE;
     private static volatile long sOursUntil;
+    /** 最近一次在物理键盘上看到 Shift 按键的时刻。 */
+    private static volatile long sPhysicalUntil;
 
     private SubtypeGuard() {}
 
@@ -58,6 +68,21 @@ final class SubtypeGuard {
     static void noteOurs(int targetKeyboardValue) {
         sOursTarget = targetKeyboardValue;
         sOursUntil = System.currentTimeMillis() + OURS_TTL_MS;
+    }
+
+    /**
+     * 物理键盘上看到了 Shift 按键（按下 / 抬起都算）——由 {@link Hotkeys} 的按键钩子喂。
+     *
+     * <p>⚠️ 严格模式<b>只该拦物理键盘发起的切换</b>：拦在 {@code N.m3} 这个总漏斗上时看不见来源，
+     * 一刀切会把微信软键盘自己的中英键也拦掉（用户报过：软键盘切不了语言）。
+     */
+    static void notePhysicalShift() {
+        sPhysicalUntil = System.currentTimeMillis() + PHYSICAL_TTL_MS;
+    }
+
+    /** 这次切换是不是物理键盘那条路发起的。 */
+    private static boolean fromPhysicalKeyboard() {
+        return System.currentTimeMillis() < sPhysicalUntil;
     }
 
     private static boolean isOurs(int target) {
@@ -116,6 +141,12 @@ final class SubtypeGuard {
 
         if (isOurs(target)) {
             Log.i(TAG, "strict: allow our own switch -> " + target);
+            return false;
+        }
+        // 严格模式只拦**物理键盘**发起的切换：软键盘的中英键、工具栏中英键都不经过 Shift，
+        // 一刀切会把它们也拦掉（用户报过：软键盘切不了语言）。
+        if (!fromPhysicalKeyboard()) {
+            Log.i(TAG, "strict: allow soft switch -> " + target);
             return false;
         }
         return true;
