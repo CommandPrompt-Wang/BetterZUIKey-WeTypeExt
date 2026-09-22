@@ -145,10 +145,47 @@ final class SubtypeGuard {
         }
         // 严格模式只拦**物理键盘**发起的切换：软键盘的中英键、工具栏中英键都不经过 Shift，
         // 一刀切会把它们也拦掉（用户报过：软键盘切不了语言）。
-        if (!fromPhysicalKeyboard()) {
-            Log.i(TAG, "strict: allow soft switch -> " + target);
-            return false;
+        if (fromPhysicalKeyboard()) return true;
+        if (!viaK3()) {
+            Log.i(TAG, "strict: blocked session restore -> " + target);
+            return true;
         }
-        return true;
+        Log.i(TAG, "strict: allow soft switch -> " + target);
+        return false;
+    }
+
+    /**
+     * 这次 {@code m3} 是不是「用户按出来的」。
+     *
+     * <h3>测到的事</h3>
+     * 微信<b>每次开新输入会话都按偏好 {@code ime_current_keyboard} 恢复上次的键盘</b>
+     * ——实测切到英文后，每进一个新文本框内部语言就被拽回中文，此时框架还是 {@code en-US}，
+     * 回写随后再把系统一起带成中文（表现成「切了英文，进第二个文本框就变中文」，全程没碰物理键盘）。
+     *
+     * <h3>怎么区分</h3>
+     * 打调用栈比对过，两条路分得很干净（{@code N.m3} 是终点，看它上面有没有 {@code N.k3}）：
+     * <pre>
+     *   软键盘中英键   key.d.M -> N.p3  -> N.k3 -> N.l3 -> N.q3 -> m3
+     *   翻译层切语言   SubtypeTranslator -> N.k3 -> N.l3 -> N.q3 -> m3
+     *   进硬件模式恢复 N.r3 -> N.n3 -> N.k3 -> N.l3 -> N.q3 -> m3
+     *   ────────────────────────────────────────────────────────────
+     *   会话开始恢复   WxHldService.g2 -> K2 -> N.C3 -> N.l3 -> N.q3 -> m3   ← 绕过 k3
+     * </pre>
+     * 所以「栈上没有 {@code N.k3}」＝ 不是用户按出来的，是微信自己按偏好恢复会话 ⇒ 拦。
+     *
+     * <p>不能只看「有没有按过键」（时间窗口那种）：开新文本框常常就在刚敲完键之后，
+     * 窗口判据会把这种恢复放过去。
+     */
+    private static boolean viaK3() {
+        try {
+            for (StackTraceElement e : new Throwable().getStackTrace()) {
+                if ("com.tencent.wetype.plugin.hld.model.N".equals(e.getClassName())
+                        && e.getMethodName().startsWith("k3")) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 }

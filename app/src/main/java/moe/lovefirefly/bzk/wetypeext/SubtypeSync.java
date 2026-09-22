@@ -38,11 +38,14 @@ final class SubtypeSync {
     private static final int MAX_STEPS = 3;
     /** 每步之间等框架落定的时间。 */
     private static final long STEP_DELAY_MS = 250L;
+    /** 开工前的落定等待，见 {@link #run()}。 */
+    private static final long SETTLE_MS = 150L;
+    /** 一轮推完仍有人改语言时，最多再看几轮。 */
+    private static final int MAX_ROUNDS = 4;
 
-    /** 同一时刻只允许一个回写流程；期间的请求只记最新目标，由流程自己收敛。 */
+    /** 同一时刻只允许一个回写流程；期间的请求只做个记号，由流程自己重新采样。 */
     private static volatile boolean sBusy;
-    private static volatile boolean sPendingEn;
-    private static volatile boolean sHasPending;
+    private static volatile boolean sPending;
 
     private SubtypeSync() {}
 
@@ -53,37 +56,42 @@ final class SubtypeSync {
      */
     static void onKeyboardChanged(int keyboardValue) {
         if (!ExtConfig.get().syncBackToFramework) return;
+        if (wantOf(keyboardValue) == null) return;   // 数字/符号/手写等面板：与语言无关
 
-        final Boolean isZh = WeTypeInternals.isChineseKeyboard(keyboardValue);
-        if (isZh == null) return;
-        final boolean wantEn;
-        if (isZh.booleanValue()) {
-            wantEn = false;
-        } else if (keyboardValue == WeTypeInternals.KB_ENGLISH_QWERTY) {
-            wantEn = true;
-        } else {
-            return; // 数字/符号/手写等面板：与语言无关，不回写
+        sPending = true;
+        synchronized (SubtypeSync.class) {
+            if (sBusy) return;
+            sBusy = true;
         }
-
-        if (sBusy) {
-            sPendingEn = wantEn;
-            sHasPending = true;
-            return;
-        }
-        final Thread t = new Thread(() -> run(wantEn), "wetype-subtype-sync");
+        final Thread t = new Thread(SubtypeSync::run, "wetype-subtype-sync");
         t.setDaemon(true);
         t.start();
     }
 
-    private static void run(boolean wantEn) {
-        sBusy = true;
+    /** 由键盘值算回写目标；{@code null} = 与语言无关，不该回写。 */
+    private static Boolean wantOf(int keyboardValue) {
+        final Boolean isZh = WeTypeInternals.isChineseKeyboard(keyboardValue);
+        if (isZh == null) return null;
+        if (isZh.booleanValue()) return Boolean.FALSE;
+        if (keyboardValue == WeTypeInternals.KB_ENGLISH_QWERTY) return Boolean.TRUE;
+        return null;
+    }
+
+    private static void run() {
         try {
-            boolean target = wantEn;
-            while (true) {
-                if (alignOnce(target)) return;          // 已一致，收工
-                if (!sHasPending) return;               // 没有新的目标，收工
-                sHasPending = false;
-                target = sPendingEn;                    // 用户又切了，按最新的来
+            for (int round = 0; round < MAX_ROUNDS; round++) {
+                sPending = false;
+                // ⚠️ 别用调用点传来的那个值：它可能只是**瞬时**状态。实测进硬件模式时
+                // 微信会先按持久化的「上次用的键盘」切一下再被还原（`100 -> 1 -> 100`
+                // 只隔 20 多毫秒），拿那个正中间的样本回写，就会把框架推成中文，
+                // 框架再反过来把微信拽回中文。等它落定，然后**现读**真实语言。
+                sleep(SETTLE_MS);
+                final Integer live = WeTypeInternals.keyboardValue();
+                if (live == null) return;
+                final Boolean want = wantOf(live.intValue());
+                if (want == null) return;
+                if (!alignOnce(want.booleanValue())) return;
+                if (!sPending) return;               // 没人再动过语言，收工
             }
         } finally {
             sBusy = false;

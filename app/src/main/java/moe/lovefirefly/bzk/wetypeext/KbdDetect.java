@@ -100,6 +100,12 @@ final class KbdDetect {
             b.setAccessible(true);
             module.hook(b).intercept(chain -> {
                 if (!fresh() || sForcing) return chain.proceed();
+
+                // ⚠️ 进硬件模式有个副作用：微信会按持久化的「上次用的键盘」（ime_current_keyboard）
+                // 把语言恢复回去。实测在英文态下按第一个物理键就被打回中文（pref 还停在中文），
+                // 然后回写再把系统一起带成中文 —— 表现成「切了英文，一按物理键就变中文」。
+                // 所以进模式前后把用户当前的语言兜住。
+                final Integer langBefore = WeTypeInternals.keyboardValue();
                 try {
                     // 借一个 A–Z 键码问它一次：微信会因此进硬件模式（软键盘随之收起）
                     sForcing = true;
@@ -108,6 +114,13 @@ final class KbdDetect {
                     Log.w(TAG, "KbdDetect: force hardware mode failed: " + tr);
                 } finally {
                     sForcing = false;
+                }
+                final Integer langAfter = WeTypeInternals.keyboardValue();
+                if (langBefore != null && langAfter != null
+                        && langBefore.intValue() != langAfter.intValue()) {
+                    Log.i(TAG, "KbdDetect: 进硬件模式把语言 " + langBefore + " -> " + langAfter
+                            + "，还原回 " + langBefore);
+                    WeTypeInternals.switchKeyboard(langBefore.intValue());
                 }
                 return chain.proceed();
             });
