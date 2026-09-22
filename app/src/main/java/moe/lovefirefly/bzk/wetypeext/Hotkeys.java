@@ -76,7 +76,15 @@ final class Hotkeys {
             final Method m = d.getDeclaredMethod(name, int.class, KeyEvent.class);
             m.setAccessible(true);
             module.hook(m).intercept(chain -> {
-                InputSource.markPhysical();          // 任何物理键都记一笔
+                // 任何物理键都记一笔（带字符，供 、 的 / \ 消歧）
+                try {
+                    final Object ev = chain.getArg(1);
+                    final int uc = ev instanceof KeyEvent
+                            ? ((KeyEvent) ev).getUnicodeChar() : 0;
+                    InputSource.markPhysical(uc > 0 ? (char) uc : (char) 0);
+                } catch (Throwable tr) {
+                    InputSource.markPhysical();
+                }
                 try {
                     // Shift 切换修复：按键盘这一层记"Shift 参与过组合"
                     final Object kcA = chain.getArg(0);

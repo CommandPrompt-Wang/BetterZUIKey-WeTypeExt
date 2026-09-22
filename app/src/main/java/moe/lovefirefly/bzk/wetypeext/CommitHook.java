@@ -56,6 +56,7 @@ final class CommitHook {
                 if (hook(module, m, nm)) n++;
             }
             Log.i(TAG, "CommitHook: hooked " + n + " method(s)");
+            Log.i(TAG, "TextNorm 标点表自检: " + TextNorm.selfCheck());
         } catch (Throwable tr) {
             Log.w(TAG, "CommitHook: install failed: " + tr);
         }

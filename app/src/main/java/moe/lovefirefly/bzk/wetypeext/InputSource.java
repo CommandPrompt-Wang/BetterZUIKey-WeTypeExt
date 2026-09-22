@@ -32,9 +32,23 @@ final class InputSource {
     private static volatile long sPhysKeyAt = -1L;
     private static volatile boolean sInstalled;
 
+    /** 最后一个物理键**打出来的字符**（微信把 {@code /} 与 {@code \} 都映射成 {@code 、}，
+     * 还原时要用它消歧）。 */
+    private static volatile char sLastKeyChar;
+
     private InputSource() {}
 
     /** 物理键按下时调（由 {@link Hotkeys} 在同一个钩子里打点）。 */
+    static void markPhysical(char keyChar) {
+        if (keyChar > 0) sLastKeyChar = keyChar;
+        markPhysical();
+    }
+
+    /** 最后一个物理键的字符（没记到就是 0）。 */
+    static char lastKeyChar() {
+        return sLastKeyChar;
+    }
+
     static void markPhysical() {
         sPhysKeyAt = System.currentTimeMillis();
     }

@@ -35,10 +35,37 @@ final class TextNorm {
      *
      * <p>不收 {@code 、}：物理键上分不出来，且中文里没有等价的单个 ASCII。
      */
-    private static final String CN_PUNCT = "，。！？；：（）【】《》〈〉“”‘’";
-    private static final String CN_PUNCT_ASCII = ",.!?;:()[]<><>\"\"''";
+    private static final String CN_PUNCT = "，。！？；：（）【】《》〈〉“”‘’－＝｛｝·｀";
+    private static final String CN_PUNCT_ASCII = ",.!?;:()[]<><>\"\"''-={}``";
+
+    /**
+     * 半角化时<b>不许动</b>的中文标点（它们本来就该是全角，语义层管它们）。
+     *
+     * <p>与搜狗 OEM Ext 的 {@code PunctPipeline.PUNCT_OWNED} 完全一致 —— 否则"半角模式"会把
+     * ！？；：，（） 一起拉成 ASCII，等于绕开"中英标点"那个状态位。
+     */
+    private static final String CN_PUNCT_OWNED = "！？；：，（）";
 
     private TextNorm() {}
+
+    /**
+     * 启动自检：两张表长度一致、且能双向对上（防手滑写错顺序/漏字符）。
+     * 只在装钩子时调一次，日志里能直接看到。
+     */
+    static String selfCheck() {
+        if (CN_PUNCT.length() != CN_PUNCT_ASCII.length()) {
+            return "LENGTH MISMATCH cn=" + CN_PUNCT.length() + " ascii=" + CN_PUNCT_ASCII.length();
+        }
+        final StringBuilder bad = new StringBuilder();
+        for (int i = 0; i < CN_PUNCT.length(); i++) {
+            final String back = toAsciiPunct(String.valueOf(CN_PUNCT.charAt(i)));
+            if (back == null || back.charAt(0) != CN_PUNCT_ASCII.charAt(i)) {
+                bad.append(CN_PUNCT.charAt(i)).append("->").append(CN_PUNCT_ASCII.charAt(i))
+                   .append(' ');
+            }
+        }
+        return bad.length() == 0 ? "ok (" + CN_PUNCT.length() + " pairs)" : "BAD " + bad;
+    }
 
     /**
      * 提交文本的总入口。
@@ -62,9 +89,11 @@ final class TextNorm {
             if (n2 != null) s = n2;
         }
 
-        // ③ 全角模式：**功能开 && 状态位为真**才做（用户口径；状态位由 Shift+Space 切）
-        if (ExtConfig.get().fullwidthFeature && PunctState.fullwidth()) {
-            final String n3 = toFullWidth(s);
+        // ③ 全角模式（功能门 + 状态位，Shift+Space 切）：
+        //    状态=全角 ⇒ ASCII 全角化；状态=半角 ⇒ 把微信**自己**映射成全角的那些拉回半角
+        //    （－＝｛｝ 这类，见 hardware/d.unicodeHalfToFull）。门关着一律不碰。
+        if (ExtConfig.get().fullwidthFeature) {
+            final String n3 = PunctState.fullwidth() ? toFullWidth(s) : toHalfWidth(s);
             if (n3 != null) s = n3;
         }
 
@@ -98,8 +127,15 @@ final class TextNorm {
         if (src == null || src.length() == 0) return null;
         final StringBuilder sb = new StringBuilder(src.length());
         boolean changed = false;
+        final char lastKey = InputSource.lastKeyChar();
         for (int i = 0; i < src.length(); i++) {
             final char c = src.charAt(i);
+            // 微信把 / 和 \ 都映射成 、 ⇒ 还原时用"上一个物理键"消歧（搜狗同款做法）
+            if (c == '、') {
+                sb.append(lastKey == '\\' ? '\\' : '/');
+                changed = true;
+                continue;
+            }
             final int idx = CN_PUNCT.indexOf(c);
             if (idx < 0) {
                 sb.append(c);
@@ -134,6 +170,34 @@ final class TextNorm {
                 changed = true;
             } else if (c == ' ') {
                 sb.append((char) 0x3000);   // 空格 → 全角空格（搜狗同款）
+                changed = true;
+            } else {
+                sb.append(c);
+            }
+        }
+        return changed ? sb.toString() : null;
+    }
+
+    /**
+     * 半角化：全角 ASCII 区（{@code FF01–FF5E}）→ ASCII，全角空格 → 普通空格。
+     *
+     * <p>为什么要它：微信自己会把 {@code - = { }} 映射成 {@code －＝｛｝}（物理键那条
+     * {@code unicodeHalfToFull} 表），所以"半角"状态下必须反向还原，否则打出来还是全角。
+     *
+     * <p>{@link #CN_PUNCT_OWNED} 里那几个（！？；：，（））<b>不动</b> —— 它们是中文标点，
+     * 归"中英标点"那个状态位管（搜狗同款口径）。
+     */
+    static String toHalfWidth(CharSequence src) {
+        if (src == null || src.length() == 0) return null;
+        final StringBuilder sb = new StringBuilder(src.length());
+        boolean changed = false;
+        for (int i = 0; i < src.length(); i++) {
+            final char c = src.charAt(i);
+            if (c >= 0xFF01 && c <= 0xFF5E && CN_PUNCT_OWNED.indexOf(c) < 0) {
+                sb.append((char) (c - 0xFEE0));
+                changed = true;
+            } else if (c == 0x3000) {
+                sb.append(' ');
                 changed = true;
             } else {
                 sb.append(c);
